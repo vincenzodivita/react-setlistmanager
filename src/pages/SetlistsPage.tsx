@@ -1,78 +1,135 @@
-import type { Setlist } from '@/types';
-import './SetlistCard.css';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAppStore } from '@/store/appStore';
+import { apiClient } from '@/services/api';
+import type { Setlist, CreateSetlistDto, UpdateSetlistDto } from '@/types';
+import SetlistCard from '@/components/SetlistCard';
+import SetlistModal from '@/components/SetlistModal';
+import SetlistDetailModal from '@/components/SetlistDetailModal';
+import './SetlistsPage.css';
 
-interface SetlistCardProps {
-  setlist: Setlist;
-  isOwner: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-  onClick: () => void;
-  onPlay: () => void;
-}
+export default function SetlistsPage() {
+  const navigate = useNavigate();
+  const { setlists, setSetlists, user } = useAppStore();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [editingSetlist, setEditingSetlist] = useState<Setlist | null>(null);
+  const [selectedSetlist, setSelectedSetlist] = useState<Setlist | null>(null);
 
-export default function SetlistCard({
-  setlist,
-  isOwner,
-  onEdit,
-  onDelete,
-  onClick,
-  onPlay,
-}: SetlistCardProps) {
-  const isShared = setlist.sharedWith.length > 0;
-  const songCount = setlist.songs.length;
-
-  const handleEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onEdit();
+  const handleCreateSetlist = async (dto: CreateSetlistDto) => {
+    try {
+      const newSetlist = await apiClient.createSetlist(dto);
+      setSetlists([...setlists, newSetlist]);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error creating setlist:', error);
+      alert('Errore nella creazione della setlist');
+    }
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete();
+  const handleUpdateSetlist = async (id: string, dto: UpdateSetlistDto) => {
+    try {
+      const updatedSetlist = await apiClient.updateSetlist(id, dto);
+      setSetlists(setlists.map((s) => (s.id === id ? updatedSetlist : s)));
+      setIsModalOpen(false);
+      setEditingSetlist(null);
+    } catch (error) {
+      console.error('Error updating setlist:', error);
+      alert('Errore nell\'aggiornamento della setlist');
+    }
   };
 
-  const handlePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onPlay();
+  const handleDeleteSetlist = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questa setlist?')) return;
+
+    try {
+      await apiClient.deleteSetlist(id);
+      setSetlists(setlists.filter((s) => s.id !== id));
+    } catch (error) {
+      console.error('Error deleting setlist:', error);
+      alert('Errore nell\'eliminazione della setlist');
+    }
   };
+
+  const handleEditSetlist = (setlist: Setlist) => {
+    setEditingSetlist(setlist);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenDetail = (setlist: Setlist) => {
+    setSelectedSetlist(setlist);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingSetlist(null);
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedSetlist(null);
+  };
+
+  const handlePlaySetlist = (setlist: Setlist) => {
+    // TODO: Navigate to Live mode with selected setlist
+    navigate('/live', { state: { setlist } });
+  };
+
+  const isOwner = (setlist: Setlist) => setlist.userId === user?.id;
 
   return (
-    <div className="setlist-card" onClick={onClick}>
-      <div className="setlist-card-header">
-        <div>
-          <h3 className="setlist-name">{setlist.name}</h3>
-          {setlist.description && (
-            <p className="setlist-description">{setlist.description}</p>
-          )}
-          <div className="setlist-badges">
-            {isShared && <span className="badge badge-shared">🤝 Condivisa</span>}
-            {!isOwner && <span className="badge badge-owner">👤 Di un amico</span>}
-          </div>
-        </div>
-        {isOwner && (
-          <div className="setlist-card-actions">
-            <button onClick={handleEdit} className="icon-btn" title="Modifica">
-              ✏️
-            </button>
-            <button onClick={handleDelete} className="icon-btn" title="Elimina">
-              🗑️
-            </button>
-          </div>
-        )}
+    <div className="page">
+      <div className="page-header">
+        <h2>Le Mie Setlist</h2>
+        <button onClick={() => setIsModalOpen(true)} className="btn btn-primary">
+          + Nuova Setlist
+        </button>
       </div>
 
-      <div className="setlist-info">
-        <span className="info-badge">
-          🎵 {songCount} {songCount === 1 ? 'brano' : 'brani'}
-        </span>
-      </div>
-
-      {songCount > 0 && (
-        <div className="setlist-actions">
-          <button onClick={handlePlay} className="btn btn-primary btn-sm">
-            ▶ Avvia Live
-          </button>
+      {setlists.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">📋</div>
+          <p>Nessuna setlist ancora. Creane una!</p>
         </div>
+      ) : (
+        <div className="setlists-grid">
+          {setlists.map((setlist) => (
+            <SetlistCard
+              key={setlist.id}
+              setlist={setlist}
+              isOwner={isOwner(setlist)}
+              onEdit={() => handleEditSetlist(setlist)}
+              onDelete={() => handleDeleteSetlist(setlist.id)}
+              onClick={() => handleOpenDetail(setlist)}
+              onPlay={() => handlePlaySetlist(setlist)}
+            />
+          ))}
+        </div>
+      )}
+
+      {isModalOpen && (
+        <SetlistModal
+          setlist={editingSetlist}
+          onSave={
+            editingSetlist
+              ? (dto: any) => handleUpdateSetlist(editingSetlist.id, dto)
+              : handleCreateSetlist
+          }
+          onClose={handleCloseModal}
+        />
+      )}
+
+      {isDetailModalOpen && selectedSetlist && (
+        <SetlistDetailModal
+          setlist={selectedSetlist}
+          onClose={handleCloseDetailModal}
+          onUpdate={(updated) => {
+            setSetlists(setlists.map((s) => (s.id === updated.id ? updated : s)));
+            setSelectedSetlist(updated);
+          }}
+          onPlay={() => handlePlaySetlist(selectedSetlist)}
+        />
       )}
     </div>
   );
