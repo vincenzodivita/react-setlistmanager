@@ -174,10 +174,11 @@ export default function MetronomePage() {
           <button
             onClick={toggleMetronome}
             className={`btn ${isPlaying ? 'btn-danger' : 'btn-primary'}`}
-          ></button>
-        </div>
-          {isPlaying ? '⏸ Stop' : '▶ Start'}
+         >
+    
+            {isPlaying ? '⏸ Stop' : '▶ Start'}
         </button>
+            </div>
       </div>
     </div>
   );
