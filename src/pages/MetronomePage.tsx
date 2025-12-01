@@ -157,6 +157,7 @@ export default function MetronomePage() {
         <div className="control-group">
           <label>Tempo</label>
           <select
+          className="btn btn secondary"
             value={timeSignature}
             onChange={(e) => handleTimeSignatureChange(Number(e.target.value))}
           >
@@ -169,10 +170,12 @@ export default function MetronomePage() {
           </select>
         </div>
 
-        <button
-          onClick={toggleMetronome}
-          className={`btn ${isPlaying ? 'btn-danger' : 'btn-primary'}`}
-        >
+        <div className="control-group">
+          <button
+            onClick={toggleMetronome}
+            className={`btn ${isPlaying ? 'btn-danger' : 'btn-primary'}`}
+          ></button>
+        </div>
           {isPlaying ? '⏸ Stop' : '▶ Start'}
         </button>
       </div>
