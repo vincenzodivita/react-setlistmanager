@@ -73,3 +73,9 @@
   color: var(--accent-primary);
   font-weight: 600;
 }
+
+.badge-advanced {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}

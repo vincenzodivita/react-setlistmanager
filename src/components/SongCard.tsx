@@ -1,16 +1,7 @@
-import type { Song } from '@/types';
-import './SongCard.css';
-
-interface SongCardProps {
-  song: Song;
-  isOwner: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
 export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardProps) {
   const totalBars = song.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
   const isShared = song.sharedWith.length > 0;
+  const hasAdvancedMode = song.sections && song.sections.length > 0;
 
   return (
     <div className="song-card">
@@ -18,6 +9,7 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
         <div>
           <h3 className="song-name">{song.name}</h3>
           <div className="song-badges">
+            {hasAdvancedMode && <span className="badge badge-advanced">🎼 Avanzato</span>}
             {isShared && <span className="badge badge-shared">🤝 Condiviso</span>}
             {!isOwner && <span className="badge badge-owner">👤 Di un amico</span>}
           </div>
@@ -37,18 +29,18 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
       <div className="song-info">
         <span className="info-badge">⏱️ {song.bpm} BPM</span>
         <span className="info-badge">🎵 {song.timeSignature}/4</span>
-        {song.sections && song.sections.length > 0 && (
+        {hasAdvancedMode && (
           <span className="info-badge">
             📝 {song.sections.length} sezioni ({totalBars} batt.)
           </span>
         )}
       </div>
 
-      {song.sections && song.sections.length > 0 && (
+      {hasAdvancedMode && (
         <div className="sections-preview">
           {song.sections.map((section, index) => (
             <span key={index} className="section-tag">
-              {section.name} ({section.bars} batt.)
+              {section.name || `Sezione ${index + 1}`} ({section.bars} batt.)
             </span>
           ))}
         </div>
