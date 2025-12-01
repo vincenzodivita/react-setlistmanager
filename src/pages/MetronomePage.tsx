@@ -171,7 +171,7 @@ export default function MetronomePage() {
 
         <button
           onClick={toggleMetronome}
-          className={`btn btn-large ${isPlaying ? 'btn-danger' : 'btn-primary'}`}
+          className={`btn ${isPlaying ? 'btn-danger' : 'btn-primary'}`}
         >
           {isPlaying ? '⏸ Stop' : '▶ Start'}
         </button>
