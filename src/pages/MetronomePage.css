@@ -89,6 +89,19 @@
   margin-bottom: 1rem;
 }
 
+/* Rimuove gli spinner su Chrome, Edge e Safari */
+.bpm-input::-webkit-inner-spin-button,
+.bpm-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Rimuove spinner su Firefox */
+.bpm-input {
+  -moz-appearance: textfield;
+}
+
+
 .bpm-input {
   width: 100px;
   text-align: center;
