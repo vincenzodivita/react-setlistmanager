@@ -91,7 +91,7 @@ export default function SongsPage() {
           song={editingSong}
           onSave={
             editingSong
-              ? (dto) => handleUpdateSong(editingSong.id, dto)
+              ? (dto: any) => handleUpdateSong(editingSong.id, dto)
               : handleCreateSong
           }
           onClose={handleCloseModal}
