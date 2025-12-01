@@ -157,7 +157,7 @@ export default function MetronomePage() {
         <div className="control-group">
           <label>Tempo</label>
           <select
-          className="btn btn secondary"
+          className="btn btn-secondary"
             value={timeSignature}
             onChange={(e) => handleTimeSignatureChange(Number(e.target.value))}
           >
