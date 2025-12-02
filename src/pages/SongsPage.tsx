@@ -289,12 +289,14 @@ export default function SongsPage() {
                 </div>
               </div>
 
-              {/* Reset Filtri */}
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="btn btn-secondary btn-sm">
-                  ✕ Reset filtri
-                </button>
-              )}
+              <div  className="filter-item">
+                {/* Reset Filtri */}
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="btn btn-secondary btn-sm">
+                    ✕ Reset filtri
+                  </button>
+                )}
+              </div>
 
             </div>
            
