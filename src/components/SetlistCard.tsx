@@ -8,6 +8,7 @@ interface SetlistCardProps {
   onDelete: () => void;
   onClick: () => void;
   onPlay: () => void;
+  onShare?: () => void;
 }
 
 export default function SetlistCard({
@@ -17,6 +18,7 @@ export default function SetlistCard({
   onDelete,
   onClick,
   onPlay,
+  onShare,
 }: SetlistCardProps) {
   const isShared = setlist.sharedWith.length > 0;
   const songCount = setlist.songs.length;
@@ -36,6 +38,11 @@ export default function SetlistCard({
     onPlay();
   };
 
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onShare?.();
+  };
+
   return (
     <div className="setlist-card" onClick={onClick}>
       <div className="setlist-card-header">
@@ -45,12 +52,19 @@ export default function SetlistCard({
             <p className="setlist-description">{setlist.description}</p>
           )}
           <div className="setlist-badges">
-            {isShared && <span className="badge badge-shared">🤝 Condivisa</span>}
+            {isShared && (
+              <span className="badge badge-shared">
+                🤝 {setlist.sharedWith.length} {setlist.sharedWith.length === 1 ? 'amico' : 'amici'}
+              </span>
+            )}
             {!isOwner && <span className="badge badge-owner">👤 Di un amico</span>}
           </div>
         </div>
         {isOwner && (
           <div className="setlist-card-actions">
+            <button onClick={handleShare} className="icon-btn" title="Condividi">
+              🔗
+            </button>
             <button onClick={handleEdit} className="icon-btn" title="Modifica">
               ✏️
             </button>

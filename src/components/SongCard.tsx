@@ -6,9 +6,10 @@ interface SongCardProps {
   isOwner: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onShare?: () => void;
 }
 
-export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardProps) {
+export default function SongCard({ song, isOwner, onEdit, onDelete, onShare }: SongCardProps) {
   const totalBars = song.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
   const isShared = song.sharedWith.length > 0;
   const hasAdvancedMode = song.sections && song.sections.length > 0;
@@ -21,6 +22,11 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete();
+  };
+
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onShare?.();
   };
 
   return (
@@ -36,12 +42,19 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
           )}
           <div className="song-badges">
             {hasAdvancedMode && <span className="badge badge-advanced">🎼 Avanzato</span>}
-            {isShared && <span className="badge badge-shared">🤝 Condiviso</span>}
+            {isShared && (
+              <span className="badge badge-shared">
+                🤝 {song.sharedWith.length} {song.sharedWith.length === 1 ? 'amico' : 'amici'}
+              </span>
+            )}
             {!isOwner && <span className="badge badge-owner">👤 Di un amico</span>}
           </div>
         </div>
         {isOwner && (
           <div className="song-card-actions">
+            <button onClick={handleShare} className="icon-btn" title="Condividi">
+              🔗
+            </button>
             <button onClick={handleEdit} className="icon-btn" title="Modifica">
               ✏️
             </button>

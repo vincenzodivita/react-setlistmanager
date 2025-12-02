@@ -4,6 +4,7 @@ import { apiClient } from '@/services/api';
 import type { Song, CreateSongDto, UpdateSongDto } from '@/types';
 import SongCard from '@/components/SongCard';
 import SongModal from '@/components/SongModal';
+import ShareModal from '@/components/ShareModal';
 import './SongsPage.css';
 
 type SortOption = 'name' | 'artist' | 'bpm' | 'recent';
@@ -13,6 +14,7 @@ export default function SongsPage() {
   const { songs, setSongs, user } = useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [sharingSong, setSharingSong] = useState<Song | null>(null);
 
   // Filtri
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,6 +140,26 @@ export default function SongsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingSong(null);
+  };
+
+  const handleShareSong = (song: Song) => {
+    setSharingSong(song);
+  };
+
+  const handleShareWithFriends = async (userIds: string[]) => {
+    if (!sharingSong) return;
+
+    const updatedSong = await apiClient.shareSong(sharingSong.id, userIds);
+    setSongs(songs.map(s => s.id === sharingSong.id ? updatedSong : s));
+    setSharingSong(updatedSong);
+  };
+
+  const handleUnshareSong = async (userId: string) => {
+    if (!sharingSong) return;
+
+    const updatedSong = await apiClient.unshareSong(sharingSong.id, userId);
+    setSongs(songs.map(s => s.id === sharingSong.id ? updatedSong : s));
+    setSharingSong(updatedSong);
   };
 
   const clearFilters = () => {
@@ -311,6 +333,7 @@ export default function SongsPage() {
               isOwner={isOwner(song)}
               onEdit={() => handleEditSong(song)}
               onDelete={() => handleDeleteSong(song.id)}
+              onShare={() => handleShareSong(song)}
             />
           ))}
         </div>
@@ -356,6 +379,13 @@ export default function SongsPage() {
                   {owner ? (
                     <>
                       <button
+                        onClick={() => handleShareSong(song)}
+                        className="icon-btn"
+                        title="Condividi"
+                      >
+                        🔗
+                      </button>
+                      <button
                         onClick={() => handleEditSong(song)}
                         className="icon-btn"
                         title="Modifica"
@@ -389,6 +419,17 @@ export default function SongsPage() {
               : handleCreateSong
           }
           onClose={handleCloseModal}
+        />
+      )}
+
+      {sharingSong && (
+        <ShareModal
+          title="Condividi Brano"
+          itemName={sharingSong.name}
+          sharedWith={sharingSong.sharedWith}
+          onShare={handleShareWithFriends}
+          onUnshare={handleUnshareSong}
+          onClose={() => setSharingSong(null)}
         />
       )}
     </div>

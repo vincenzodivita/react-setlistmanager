@@ -6,6 +6,7 @@ import type { Setlist, CreateSetlistDto, UpdateSetlistDto } from '@/types';
 import SetlistCard from '@/components/SetlistCard';
 import SetlistModal from '@/components/SetlistModal';
 import SetlistDetailModal from '@/components/SetlistDetailModal';
+import ShareModal from '@/components/ShareModal';
 import './SetlistsPage.css';
 
 export default function SetlistsPage() {
@@ -15,6 +16,7 @@ export default function SetlistsPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingSetlist, setEditingSetlist] = useState<Setlist | null>(null);
   const [selectedSetlist, setSelectedSetlist] = useState<Setlist | null>(null);
+  const [sharingSetlist, setSharingSetlist] = useState<Setlist | null>(null);
 
   const handleCreateSetlist = async (dto: CreateSetlistDto) => {
     try {
@@ -72,8 +74,27 @@ export default function SetlistsPage() {
   };
 
   const handlePlaySetlist = (setlist: Setlist) => {
-    // TODO: Navigate to Live mode with selected setlist
     navigate('/live', { state: { setlist } });
+  };
+
+  const handleShareSetlist = (setlist: Setlist) => {
+    setSharingSetlist(setlist);
+  };
+
+  const handleShareWithFriends = async (userIds: string[]) => {
+    if (!sharingSetlist) return;
+
+    const updatedSetlist = await apiClient.shareSetlist(sharingSetlist.id, userIds);
+    setSetlists(setlists.map(s => s.id === sharingSetlist.id ? updatedSetlist : s));
+    setSharingSetlist(updatedSetlist);
+  };
+
+  const handleUnshareSetlist = async (userId: string) => {
+    if (!sharingSetlist) return;
+
+    const updatedSetlist = await apiClient.unshareSetlist(sharingSetlist.id, userId);
+    setSetlists(setlists.map(s => s.id === sharingSetlist.id ? updatedSetlist : s));
+    setSharingSetlist(updatedSetlist);
   };
 
   const isOwner = (setlist: Setlist) => setlist.userId === user?.id;
@@ -103,6 +124,7 @@ export default function SetlistsPage() {
               onDelete={() => handleDeleteSetlist(setlist.id)}
               onClick={() => handleOpenDetail(setlist)}
               onPlay={() => handlePlaySetlist(setlist)}
+              onShare={() => handleShareSetlist(setlist)}
             />
           ))}
         </div>
@@ -129,6 +151,17 @@ export default function SetlistsPage() {
             setSelectedSetlist(updated);
           }}
           onPlay={() => handlePlaySetlist(selectedSetlist)}
+        />
+      )}
+
+      {sharingSetlist && (
+        <ShareModal
+          title="Condividi Setlist"
+          itemName={sharingSetlist.name}
+          sharedWith={sharingSetlist.sharedWith}
+          onShare={handleShareWithFriends}
+          onUnshare={handleUnshareSetlist}
+          onClose={() => setSharingSetlist(null)}
         />
       )}
     </div>
