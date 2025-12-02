@@ -67,24 +67,31 @@ export default function LivePage() {
 
   const updateSectionProgress = (barNumber?: number) => {
     if (!currentSong?.sections) return;
-    const bar = barNumber !== undefined ? barNumber : currentBar;
+    let bar = barNumber ?? currentBar;
     let accumulatedBars = 0;
 
     for (let i = 0; i < currentSong.sections.length; i++) {
-      if (bar < accumulatedBars + currentSong.sections[i].bars) {
+      const section = currentSong.sections[i];
+      if (bar < accumulatedBars + section.bars) {
         setCurrentSectionIndex(i);
         return;
       }
-      accumulatedBars += currentSong.sections[i].bars;
+      accumulatedBars += section.bars;
     }
 
-    if (bar >= totalBars) {
-      setCurrentBar(-1);
-      setCurrentSectionIndex(0);
-    } else {
-      setCurrentSectionIndex(currentSong.sections.length - 1);
-    }
+    // se superata ultima sezione → ferma metronomo
+    stopMetronome();
+    setCurrentBar(0);
+    setCurrentSectionIndex(0);
   };
+
+  const stopMetronome = () => {
+  setIsPlaying(false);
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }
+};
 
   const startMetronome = () => {
     if (!currentSong) return;
@@ -110,27 +117,35 @@ export default function LivePage() {
 
     intervalRef.current = window.setInterval(() => {
       setCurrentBeat((prevBeat) => {
-        const nextBeat = prevBeat >= timeSignature ? 1 : prevBeat + 1;
+        let nextBeat = prevBeat >= currentSong.timeSignature ? 1 : prevBeat + 1;
 
         if (isPrecount) {
-          setPrecountBars((prev) => {
-            const remaining = prev - (nextBeat === 1 ? 1 : 0);
-            if (remaining <= 0) setIsPrecount(false);
-            return remaining;
-          });
-        } else {
+          // decrement precount a ogni prima battuta della barra
           if (nextBeat === 1) {
-            setCurrentBar((prevBar) => prevBar + 1);
-            updateSectionProgress();
+            setPrecountBars((prev) => {
+              const remaining = prev - 1;
+              if (remaining <= 0) setIsPrecount(false);
+              return remaining;
+            });
+          }
+        } else {
+          // incrementa barra solo se fine battuta
+          if (nextBeat === 1) {
+            setCurrentBar((prevBar) => {
+              const newBar = prevBar + 1;
+              updateSectionProgress(newBar);
+              return newBar;
+            });
           }
         }
 
+        // click
         playClick(nextBeat === 1 && !isPrecount);
 
         return nextBeat;
       });
     }, interval);
-  };
+
 
   const stopMetronome = () => {
     setIsPlaying(false);
