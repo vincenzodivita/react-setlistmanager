@@ -449,6 +449,10 @@ export default function LivePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, currentSetlist, toggleFullscreen, togglePrecount, goToPrevSection, goToNextSection, stopMetronome, startMetronome, handleStop]);
 
+  useEffect(() => {
+    setTempBpm(null);
+  }, [currentSongIndex]); 
+
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
       handleStop();
