@@ -19,6 +19,7 @@ export default function LivePage() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [precountEnabled, setPrecountEnabled] = useState(true);
   const [isPrecount, setIsPrecount] = useState(false);
+  const [tempBpm, setTempBpm] = useState<number | null>(null);
   const [precountBarsRemaining, setPrecountBarsRemaining] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -46,6 +47,8 @@ export default function LivePage() {
     ? songs.find((s) => s.id === currentSetlist.songs[currentSongIndex])
     : null;
 
+  const currentBpm = tempBpm !== null ? tempBpm : currentSong?.bpm;
+
   const totalBars = currentSong?.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
   
   // Calcola la durata totale in millisecondi
@@ -55,7 +58,7 @@ export default function LivePage() {
     const totalBeats = totalBars * beatsPerBar;
     const msPerBeat = (60 / currentSong.bpm) * 1000;
     return totalBeats * msPerBeat;
-  }, [currentSong, totalBars]);
+  }, [currentSong, totalBars, currentBpm]);
 
   const totalDurationMs = getTotalDurationMs();
 
@@ -255,8 +258,7 @@ export default function LivePage() {
   }, [smoothProgress]);
 
   const startMetronome = useCallback(() => {
-    if (!currentSong) return;
-
+    if (!currentSong || !currentBpm) return;
     initAudioContext();
 
     const bpm = currentSong.bpm;
@@ -361,7 +363,7 @@ export default function LivePage() {
         }
       }
     }, interval);
-  }, [currentSong, precountEnabled, playClick, totalBars, totalDurationMs]);
+  }, [currentSong, precountEnabled, playClick, totalBars, totalDurationMs, currentBpm]);
 
   const toggleMetronome = () => {
     if (isPlaying) {
