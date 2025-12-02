@@ -215,13 +215,6 @@ export default function LivePage() {
     }
   }, [currentSong, totalBars]);
 
-  const initAudioContext = () => {
-    if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
-    }
-  };
-
   const playClick = useCallback((isAccent: boolean, isPrecount: boolean = false) => {
     if (!audioContextRef.current) return;
 
