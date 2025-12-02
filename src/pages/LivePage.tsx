@@ -96,56 +96,55 @@ export default function LivePage() {
   };
 
   // Start metronome
-  const startMetronome = () => {
-    if (!currentSong) return;
+const startMetronome = () => {
+  if (!currentSong) return;
 
-    initAudioContext();
-    const bpm = currentSong.bpm;
-    const timeSignature = currentSong.timeSignature;
-    const interval = (60 / bpm) * 1000;
+  initAudioContext();
 
-    setIsPlaying(true);
-    setCurrentBeat(1);
+  const bpm = currentSong.bpm;
+  const timeSignature = currentSong.timeSignature;
+  const interval = (60 / bpm) * 1000;
 
-    if (precountEnabled) {
-      setIsPrecount(true);
-      setPrecountBars(2);
-    } else {
-      setIsPrecount(false);
-      setPrecountBars(0);
-    }
+  setIsPlaying(true);
+  setCurrentBeat(1);
 
-    // First click
-    playClick(!isPrecount);
+  if (precountEnabled) {
+    setIsPrecount(true);
+    setPrecountBars(2);
+  } else {
+    setIsPrecount(false);
+    setPrecountBars(0);
+  }
 
-    intervalRef.current = setInterval(() => {
-      setCurrentBeat((prevBeat) => {
-        const nextBeat = prevBeat >= timeSignature ? 1 : prevBeat + 1;
-        const isNewBar = nextBeat === 1;
+  // Primo click subito
+  playClick(true);
 
-        if (isNewBar) {
-          if (isPrecount) {
-            setPrecountBars((prev) => {
-              const newCount = prev - 1;
-              if (newCount <= 0) {
-                setIsPrecount(false);
-              }
-              return newCount;
-            });
-          } else {
-            setCurrentBar((prev) => {
-              const newBar = prev + 1;
-              updateSectionProgress(newBar);
-              return newBar;
-            });
-          }
+  intervalRef.current = window.setInterval(() => {
+    setCurrentBeat((prevBeat) => {
+      const nextBeat = prevBeat >= timeSignature ? 1 : prevBeat + 1;
+
+      if (isPrecount) {
+        // gestisci precount
+        setPrecountBars((prev) => {
+          const remaining = prev - (nextBeat === 1 ? 1 : 0); // decrementa solo all'inizio della battuta
+          if (remaining <= 0) setIsPrecount(false);
+          return remaining;
+        });
+      } else {
+        // metronomo normale
+        if (nextBeat === 1) {
+          setCurrentBar((prevBar) => prevBar + 1);
+          updateSectionProgress();
         }
+      }
 
-        playClick(!isPrecount && nextBeat === 1);
-        return nextBeat;
-      });
-    }, interval);
-  };
+      // click: accent sulla prima battuta di ogni barra
+      playClick(nextBeat === 1 && !isPrecount);
+
+      return nextBeat;
+    });
+  }, interval);
+};
 
   // Stop metronome
   const stopMetronome = () => {
