@@ -31,6 +31,9 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
           {song.artist && (
             <p className="song-artist">🎤 {song.artist}</p>
           )}
+          {song.description && (
+            <p className="song-description">{song.description}</p>
+          )}
           <div className="song-badges">
             {hasAdvancedMode && <span className="badge badge-advanced">🎼 Avanzato</span>}
             {isShared && <span className="badge badge-shared">🤝 Condiviso</span>}
@@ -48,10 +51,6 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
           </div>
         )}
       </div>
-
-      {song.description && (
-        <p className="song-description">{song.description}</p>
-      )}
 
       <div className="song-info">
         <span className="info-badge">⏱️ {song.bpm} BPM</span>

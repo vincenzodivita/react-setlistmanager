@@ -7,6 +7,7 @@ import SongModal from '@/components/SongModal';
 import './SongsPage.css';
 
 type SortOption = 'name' | 'artist' | 'bpm' | 'recent';
+type ViewMode = 'grid' | 'list';
 
 export default function SongsPage() {
   const { songs, setSongs, user } = useAppStore();
@@ -21,6 +22,9 @@ export default function SongsPage() {
   // Ordinamento
   const [sortBy, setSortBy] = useState<SortOption>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Visualizzazione
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Estrai lista artisti unici per il filtro
   const uniqueArtists = useMemo(() => {
@@ -152,6 +156,10 @@ export default function SongsPage() {
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
+  const getTotalBars = (song: Song) => {
+    return song.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -184,6 +192,24 @@ export default function SongsPage() {
                   ✕
                 </button>
               )}
+            </div>
+
+            {/* Toggle Visualizzazione */}
+            <div className="view-toggle">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                title="Visualizzazione a griglia"
+              >
+                ▦
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`view-toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                title="Visualizzazione a lista"
+              >
+                ☰
+              </button>
             </div>
           </div>
 
@@ -276,7 +302,7 @@ export default function SongsPage() {
             Reset filtri
           </button>
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="songs-grid">
           {filteredAndSortedSongs.map((song) => (
             <SongCard
@@ -287,6 +313,70 @@ export default function SongsPage() {
               onDelete={() => handleDeleteSong(song.id)}
             />
           ))}
+        </div>
+      ) : (
+        <div className="songs-list">
+          {/* Header Lista */}
+          <div className="songs-list-header">
+            <span className="list-col-name">Brano</span>
+            <span className="list-col-artist">Artista</span>
+            <span className="list-col-bpm">BPM</span>
+            <span className="list-col-time">Tempo</span>
+            <span className="list-col-sections">Sezioni</span>
+            <span className="list-col-actions">Azioni</span>
+          </div>
+
+          {/* Righe Lista */}
+          {filteredAndSortedSongs.map((song) => {
+            const totalBars = getTotalBars(song);
+            const hasAdvancedMode = song.sections && song.sections.length > 0;
+            const owner = isOwner(song);
+
+            return (
+              <div key={song.id} className="songs-list-row">
+                <div className="list-col-name">
+                  <span className="list-song-name">{song.name}</span>
+                  {song.description && (
+                    <span className="list-song-description">{song.description}</span>
+                  )}
+                </div>
+                <div className="list-col-artist">
+                  {song.artist || <span className="text-muted">—</span>}
+                </div>
+                <div className="list-col-bpm">{song.bpm}</div>
+                <div className="list-col-time">{song.timeSignature}/4</div>
+                <div className="list-col-sections">
+                  {hasAdvancedMode ? (
+                    <span>{song.sections!.length} ({totalBars} batt.)</span>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
+                </div>
+                <div className="list-col-actions">
+                  {owner ? (
+                    <>
+                      <button
+                        onClick={() => handleEditSong(song)}
+                        className="icon-btn"
+                        title="Modifica"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSong(song.id)}
+                        className="icon-btn"
+                        title="Elimina"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  ) : (
+                    <span className="badge badge-owner">👤</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
