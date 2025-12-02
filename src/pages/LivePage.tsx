@@ -41,7 +41,7 @@ const LivePage: React.FC<LivePageProps> = ({ setlists, songs, currentSetlistId, 
 
   const [progress, setProgress] = useState(0); // valore slider
   const audioContextRef = useRef<AudioContext | null>(null);
-  const intervalRef = useRef<NodeJS.Timer | null>(null);
+const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Load setlist e song corrente
   useEffect(() => {
