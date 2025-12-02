@@ -466,6 +466,7 @@ export default function LivePage() {
   const handleSelectSong = (index: number) => {
     handleStop();
     setCurrentSongIndex(index);
+    setTempBpm(null);
   };
 
   const handleJumpToSection = (sectionIndex: number) => {
@@ -509,6 +510,26 @@ export default function LivePage() {
     setCurrentBeat(1);
     setSmoothProgress(newProgress);
     pausedProgressRef.current = newProgress;
+  };
+
+  const handleBpmClick = () => {
+    if (isPlaying) return;
+
+    const newBpm = prompt(`Inserisci il nuovo BPM per "${currentSong.name}" (attuale: ${currentBpm}):`);
+    
+    if (newBpm === null) {
+      // L'utente ha annullato
+      return;
+    }
+    
+    const parsedBpm = parseInt(newBpm, 10);
+
+    if (isNaN(parsedBpm) || parsedBpm <= 0) {
+      alert("BPM non valido. Inserisci un numero maggiore di zero.");
+      return;
+    }
+
+    setTempBpm(parsedBpm);
   };
 
   // Calcola info sezione corrente
@@ -614,14 +635,20 @@ export default function LivePage() {
 
         {/* Main Content */}
         <main className="live-main">
-          {/* Header compatto */}
+           {/* Header compatto */}
           <div className="live-header">
-            <div className="song-title">
-              <h2>{currentSong.name}</h2>
-              {currentSong.artist && <span className="song-artist">{currentSong.artist}</span>}
-            </div>
+            {/* ... (song-title) */}
             <div className="song-meta">
-              <span className="meta-item bpm">{currentSong.bpm} BPM</span>
+              <span 
+                className="meta-item bpm"
+                // ➡️ Aggiungi onClick e style
+                onClick={handleBpmClick}
+                style={{ cursor: isPlaying ? 'not-allowed' : 'pointer' }}
+              >
+                {currentBpm} BPM 
+                {/* ➡️ Indica se è temporaneo */}
+                {tempBpm !== null && ' (temp.)'} 
+              </span>
               <span className="meta-item time">{currentSong.timeSignature}/4</span>
             </div>
           </div>

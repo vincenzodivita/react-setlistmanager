@@ -881,3 +881,8 @@ body.live-fullscreen-mode .sidebar-nav {
     display: none;
   }
 }
+
+.meta-item.bpm[style*="cursor"]:not([style*="not-allowed"]) {
+  border-color: #f59e0b; /* Colore arancione */
+  background: rgba(245, 158, 11, 0.1);
+}
