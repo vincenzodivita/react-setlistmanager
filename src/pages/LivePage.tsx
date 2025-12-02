@@ -20,9 +20,15 @@ export default function LivePage() {
   const [precountEnabled, setPrecountEnabled] = useState(true);
   const [isPrecount, setIsPrecount] = useState(false);
   const [precountBarsRemaining, setPrecountBarsRemaining] = useState(0);
+  
+  // Progress fluido
+  const [smoothProgress, setSmoothProgress] = useState(0);
 
   const intervalRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const pausedProgressRef = useRef<number>(0);
 
   // Refs per evitare stale closures
   const isPrecountRef = useRef(false);
@@ -34,6 +40,17 @@ export default function LivePage() {
     : null;
 
   const totalBars = currentSong?.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
+  
+  // Calcola la durata totale in millisecondi
+  const getTotalDurationMs = useCallback(() => {
+    if (!currentSong) return 0;
+    const beatsPerBar = currentSong.timeSignature;
+    const totalBeats = totalBars * beatsPerBar;
+    const msPerBeat = (60 / currentSong.bpm) * 1000;
+    return totalBeats * msPerBeat;
+  }, [currentSong, totalBars]);
+
+  const totalDurationMs = getTotalDurationMs();
 
   // Sync refs con state
   useEffect(() => {
@@ -51,6 +68,7 @@ export default function LivePage() {
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
   }, []);
 
@@ -113,7 +131,13 @@ export default function LivePage() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  }, []);
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    // Salva il progresso corrente per eventuale resume
+    pausedProgressRef.current = smoothProgress;
+  }, [smoothProgress]);
 
   const startMetronome = useCallback(() => {
     if (!currentSong) return;
@@ -146,6 +170,28 @@ export default function LivePage() {
 
     let beatCounter = 1;
 
+    // Calcola il tempo di inizio per l'animazione fluida
+    // Considera il progresso già fatto (se stiamo riprendendo)
+    const msPerBeat = interval;
+    const beatsPerBar = timeSignature;
+    const currentProgressMs = currentBarRef.current * beatsPerBar * msPerBeat;
+    startTimeRef.current = performance.now() - currentProgressMs;
+
+    // Funzione per aggiornare il progresso fluido
+    const updateSmoothProgress = () => {
+      if (!isPrecountRef.current && totalDurationMs > 0) {
+        const elapsed = performance.now() - startTimeRef.current;
+        const progress = Math.min((elapsed / totalDurationMs) * 100, 100);
+        setSmoothProgress(progress);
+      }
+      animationFrameRef.current = requestAnimationFrame(updateSmoothProgress);
+    };
+
+    // Avvia l'animazione fluida dopo il precount
+    if (!precountEnabled) {
+      animationFrameRef.current = requestAnimationFrame(updateSmoothProgress);
+    }
+
     intervalRef.current = window.setInterval(() => {
       // Calcola prossimo beat
       beatCounter = beatCounter >= timeSignature ? 1 : beatCounter + 1;
@@ -165,6 +211,9 @@ export default function LivePage() {
           if (newPrecountBars <= 0) {
             isPrecountRef.current = false;
             setIsPrecount(false);
+            // Avvia l'animazione fluida ora che il precount è finito
+            startTimeRef.current = performance.now();
+            animationFrameRef.current = requestAnimationFrame(updateSmoothProgress);
           }
         }
       } else {
@@ -194,18 +243,23 @@ export default function LivePage() {
             if (!found && newBar >= totalBars) {
               clearInterval(intervalRef.current!);
               intervalRef.current = null;
+              if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+                animationFrameRef.current = null;
+              }
               setIsPlaying(false);
               setCurrentBar(0);
               currentBarRef.current = 0;
               setCurrentSectionIndex(0);
               setCurrentBeat(1);
+              setSmoothProgress(0);
               beatCounter = 1;
             }
           }
         }
       }
     }, interval);
-  }, [currentSong, precountEnabled, playClick, totalBars]);
+  }, [currentSong, precountEnabled, playClick, totalBars, totalDurationMs]);
 
   const toggleMetronome = () => {
     if (isPlaying) {
@@ -225,6 +279,8 @@ export default function LivePage() {
     isPrecountRef.current = false;
     setPrecountBarsRemaining(0);
     precountBarsRef.current = 0;
+    setSmoothProgress(0);
+    pausedProgressRef.current = 0;
   }, [stopMetronome]);
 
   const handlePrevSong = () => {
@@ -257,11 +313,19 @@ export default function LivePage() {
     currentBarRef.current = targetBar;
     setCurrentSectionIndex(sectionIndex);
     setCurrentBeat(1);
+    
+    // Aggiorna smooth progress
+    const newProgress = totalBars > 0 ? (targetBar / totalBars) * 100 : 0;
+    setSmoothProgress(newProgress);
+    pausedProgressRef.current = newProgress;
   };
 
   const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const completedBars = parseInt(e.target.value);
-    if (!currentSong?.sections) return;
+    const newProgress = parseFloat(e.target.value);
+    if (!currentSong?.sections || totalDurationMs === 0) return;
+
+    // Calcola la battuta corrispondente
+    const completedBars = Math.floor((newProgress / 100) * totalBars);
 
     let accumulatedBars = 0;
     let targetSection = 0;
@@ -279,6 +343,8 @@ export default function LivePage() {
     currentBarRef.current = completedBars;
     setCurrentSectionIndex(targetSection);
     setCurrentBeat(1);
+    setSmoothProgress(newProgress);
+    pausedProgressRef.current = newProgress;
   };
 
   const getSectionInfo = () => {
@@ -455,15 +521,16 @@ export default function LivePage() {
                   <div
                     className="progress-bar"
                     style={{
-                      width: `${totalBars > 0 ? (currentBar / totalBars) * 100 : 0}%`,
+                      width: `${isPrecount ? 0 : smoothProgress}%`,
                     }}
                   />
                   <input
                     type="range"
                     className="progress-slider"
                     min="0"
-                    max={totalBars}
-                    value={isPrecount ? 0 : currentBar}
+                    max="100"
+                    step="0.1"
+                    value={isPrecount ? 0 : smoothProgress}
                     onChange={handleProgressChange}
                     disabled={isPlaying}
                   />

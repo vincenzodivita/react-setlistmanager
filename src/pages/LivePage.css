@@ -293,8 +293,8 @@
   left: 0;
   height: 100%;
   background: linear-gradient(90deg, var(--accent-primary), #a78bfa);
-  transition: width 0.3s ease;
   pointer-events: none;
+  /* Nessuna transizione - l'animazione è gestita via requestAnimationFrame */
 }
 
 .progress-slider {
