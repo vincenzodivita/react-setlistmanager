@@ -31,12 +31,16 @@ export default function LivePage() {
   const startTimeRef = useRef<number>(0);
   const pausedProgressRef = useRef<number>(0);
   const sectionsContainerRef = useRef<HTMLDivElement>(null);
+  const trackListRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Refs per evitare stale closures
   const isPrecountRef = useRef(false);
   const precountBarsRef = useRef(0);
   const currentBarRef = useRef(0);
+  const isPlayingRef = useRef(false);
+  const currentSongIndexRef = useRef(0);
+  const currentSectionIndexRef = useRef(0);
 
   const currentSong = currentSetlist
     ? songs.find((s) => s.id === currentSetlist.songs[currentSongIndex])
@@ -69,6 +73,18 @@ export default function LivePage() {
   }, [currentBar]);
 
   useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    currentSongIndexRef.current = currentSongIndex;
+  }, [currentSongIndex]);
+
+  useEffect(() => {
+    currentSectionIndexRef.current = currentSectionIndex;
+  }, [currentSectionIndex]);
+
+  useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -85,7 +101,6 @@ export default function LivePage() {
         const containerRect = container.getBoundingClientRect();
         const sectionRect = activeSection.getBoundingClientRect();
         
-        // Calcola la posizione centrale desiderata
         const scrollLeft = activeSection.offsetLeft - (containerRect.width / 2) + (sectionRect.width / 2);
         
         container.scrollTo({
@@ -96,10 +111,47 @@ export default function LivePage() {
     }
   }, [currentSectionIndex, currentSong?.sections]);
 
+  // Scroll automatico al brano attivo nella sidebar
+  useEffect(() => {
+    if (trackListRef.current) {
+      const container = trackListRef.current;
+      const activeTrack = container.querySelector('.live-track-item.active') as HTMLElement;
+      
+      if (activeTrack) {
+        const containerRect = container.getBoundingClientRect();
+        const trackRect = activeTrack.getBoundingClientRect();
+        
+        // Scroll verticale per desktop, orizzontale per mobile
+        const isHorizontal = window.innerWidth <= 768;
+        
+        if (isHorizontal) {
+          const scrollLeft = activeTrack.offsetLeft - (containerRect.width / 2) + (trackRect.width / 2);
+          container.scrollTo({
+            left: scrollLeft,
+            behavior: 'smooth'
+          });
+        } else {
+          const scrollTop = activeTrack.offsetTop - (containerRect.height / 2) + (trackRect.height / 2);
+          container.scrollTo({
+            top: scrollTop,
+            behavior: 'smooth'
+          });
+        }
+      }
+    }
+  }, [currentSongIndex]);
+
   // Gestione fullscreen
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-  };
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(prev => !prev);
+  }, []);
+
+  // Toggle precount
+  const togglePrecount = useCallback(() => {
+    if (!isPlayingRef.current) {
+      setPrecountEnabled(prev => !prev);
+    }
+  }, []);
 
   // Effetto per gestire la classe sul body
   useEffect(() => {
@@ -114,22 +166,54 @@ export default function LivePage() {
     };
   }, [isFullscreen]);
 
-  // Gestione ESC per uscire da fullscreen
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
-      }
-      // Spazio per play/pause
-      if (e.key === ' ' && e.target === document.body) {
-        e.preventDefault();
-        toggleMetronome();
-      }
-    };
+  const initAudioContext = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+    }
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, isPlaying]);
+  // Funzioni di navigazione sezione
+  const goToPrevSection = useCallback(() => {
+    if (!currentSong?.sections || isPlayingRef.current) return;
+    
+    const newIndex = Math.max(0, currentSectionIndexRef.current - 1);
+    if (newIndex !== currentSectionIndexRef.current) {
+      let targetBar = 0;
+      for (let i = 0; i < newIndex; i++) {
+        targetBar += currentSong.sections[i].bars;
+      }
+      setCurrentBar(targetBar);
+      currentBarRef.current = targetBar;
+      setCurrentSectionIndex(newIndex);
+      setCurrentBeat(1);
+      
+      const newProgress = totalBars > 0 ? (targetBar / totalBars) * 100 : 0;
+      setSmoothProgress(newProgress);
+      pausedProgressRef.current = newProgress;
+    }
+  }, [currentSong, totalBars]);
+
+  const goToNextSection = useCallback(() => {
+    if (!currentSong?.sections || isPlayingRef.current) return;
+    
+    const maxIndex = currentSong.sections.length - 1;
+    const newIndex = Math.min(maxIndex, currentSectionIndexRef.current + 1);
+    if (newIndex !== currentSectionIndexRef.current) {
+      let targetBar = 0;
+      for (let i = 0; i < newIndex; i++) {
+        targetBar += currentSong.sections[i].bars;
+      }
+      setCurrentBar(targetBar);
+      currentBarRef.current = targetBar;
+      setCurrentSectionIndex(newIndex);
+      setCurrentBeat(1);
+      
+      const newProgress = totalBars > 0 ? (targetBar / totalBars) * 100 : 0;
+      setSmoothProgress(newProgress);
+      pausedProgressRef.current = newProgress;
+    }
+  }, [currentSong, totalBars]);
 
   const initAudioContext = () => {
     if (!audioContextRef.current) {
@@ -308,6 +392,68 @@ export default function LivePage() {
     pausedProgressRef.current = 0;
   }, [stopMetronome]);
 
+  // Gestione tastiera - dopo le definizioni di handleStop, stopMetronome, startMetronome
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignora se siamo in un input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'Escape':
+          if (isFullscreen) {
+            setIsFullscreen(false);
+          }
+          break;
+        case 'Enter':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case ' ':
+          e.preventDefault();
+          if (isPlayingRef.current) {
+            stopMetronome();
+          } else {
+            startMetronome();
+          }
+          break;
+        case 'p':
+        case 'P':
+          e.preventDefault();
+          togglePrecount();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          // Brano precedente
+          if (currentSetlist && currentSongIndexRef.current > 0) {
+            handleStop();
+            setCurrentSongIndex(currentSongIndexRef.current - 1);
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          // Brano successivo
+          if (currentSetlist && currentSongIndexRef.current < currentSetlist.songs.length - 1) {
+            handleStop();
+            setCurrentSongIndex(currentSongIndexRef.current + 1);
+          }
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          goToPrevSection();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          goToNextSection();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, currentSetlist, toggleFullscreen, togglePrecount, goToPrevSection, goToNextSection, stopMetronome, startMetronome, handleStop]);
+
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
       handleStop();
@@ -447,7 +593,7 @@ export default function LivePage() {
               {currentSongIndex + 1}/{currentSetlist.songs.length}
             </span>
           </div>
-          <div className="live-track-list">
+          <div ref={trackListRef} className="live-track-list">
             {currentSetlist.songs.map((songId, index) => {
               const song = songs.find((s) => s.id === songId);
               if (!song) return null;
@@ -567,12 +713,45 @@ export default function LivePage() {
 
           {/* Controls */}
           <div className="live-controls">
+            {/* Progress bar con info battute */}
+            {currentSong.sections && currentSong.sections.length > 0 && (
+              <div className="progress-section">
+                <div className="progress-info">
+                  <span className="progress-label">
+                    {isPrecount ? 'PRECOUNT' : `Battuta ${currentBar + 1}`}
+                  </span>
+                  <span className="progress-total">/ {totalBars}</span>
+                </div>
+                <div className="progress-bar-wrapper">
+                  <div className="progress-bar-track">
+                    <div 
+                      className="progress-bar-fill"
+                      style={{ width: `${isPrecount ? 0 : smoothProgress}%` }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    className="progress-bar-input"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={isPrecount ? 0 : smoothProgress}
+                    onChange={handleProgressChange}
+                    disabled={isPlaying}
+                  />
+                </div>
+                <span className="progress-percentage">
+                  {isPrecount ? '0' : Math.round(smoothProgress)}%
+                </span>
+              </div>
+            )}
+
             <div className="transport-row">
               <button
                 onClick={handlePrevSong}
                 className="transport-btn"
                 disabled={currentSongIndex === 0}
-                title="Brano precedente"
+                title="Brano precedente (↑)"
               >
                 ⏮
               </button>
@@ -588,6 +767,7 @@ export default function LivePage() {
               <button
                 onClick={toggleMetronome}
                 className={`play-btn ${isPlaying ? 'playing' : ''}`}
+                title="Play/Pausa (Spazio)"
               >
                 {isPlaying ? '⏸' : '▶'}
               </button>
@@ -596,45 +776,29 @@ export default function LivePage() {
                 onClick={handleNextSong}
                 className="transport-btn"
                 disabled={currentSongIndex === currentSetlist.songs.length - 1}
-                title="Brano successivo"
+                title="Brano successivo (↓)"
               >
                 ⏭
               </button>
+
+              {/* Precount toggle button */}
+              <button
+                onClick={togglePrecount}
+                className={`precount-btn ${precountEnabled ? 'active' : ''}`}
+                disabled={isPlaying}
+                title={`Precount ${precountEnabled ? 'attivo' : 'disattivo'} (P)`}
+              >
+                🚩
+              </button>
             </div>
 
-            {/* Progress slider */}
-            {currentSong.sections && currentSong.sections.length > 0 && (
-              <div className="progress-row">
-                <div className="progress-track">
-                  <div 
-                    className="progress-fill"
-                    style={{ width: `${isPrecount ? 0 : smoothProgress}%` }}
-                  />
-                  <input
-                    type="range"
-                    className="progress-input"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={isPrecount ? 0 : smoothProgress}
-                    onChange={handleProgressChange}
-                    disabled={isPlaying}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Options row */}
-            <div className="options-row">
-              <label className="option-toggle">
-                <input
-                  type="checkbox"
-                  checked={precountEnabled}
-                  onChange={(e) => setPrecountEnabled(e.target.checked)}
-                  disabled={isPlaying}
-                />
-                <span className="toggle-label">Precount (2 battute)</span>
-              </label>
+            {/* Keyboard shortcuts hint */}
+            <div className="shortcuts-hint">
+              <span>Spazio: Play/Pausa</span>
+              <span>Enter: Fullscreen</span>
+              <span>P: Precount</span>
+              <span>↑↓: Brani</span>
+              <span>←→: Sezioni</span>
             </div>
           </div>
         </main>
