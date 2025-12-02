@@ -261,7 +261,7 @@ export default function LivePage() {
     if (!currentSong || !currentBpm) return;
     initAudioContext();
 
-    const bpm = currentSong.bpm;
+    const bpm = currentBpm;
     const timeSignature = currentSong.timeSignature;
     const interval = (60 / bpm) * 1000;
 
@@ -637,7 +637,10 @@ export default function LivePage() {
         <main className="live-main">
            {/* Header compatto */}
           <div className="live-header">
-            {/* ... (song-title) */}
+            <div className="song-title">
+              <h2>{currentSong.name}</h2>
+              {currentSong.artist && <span className="song-artist">{currentSong.artist}</span>}
+            </div>
             <div className="song-meta">
               <span 
                 className="meta-item bpm"
