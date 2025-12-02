@@ -86,12 +86,12 @@ export default function LivePage() {
   };
 
   const stopMetronome = () => {
-  setIsPlaying(false);
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
-  }
-};
+    setIsPlaying(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
 
   const startMetronome = () => {
     if (!currentSong) return;
@@ -440,4 +440,5 @@ export default function LivePage() {
       </div>
     </main>
   );
+}
 }
