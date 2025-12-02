@@ -1,7 +1,27 @@
+import type { Song } from '@/types';
+import './SongCard.css';
+
+interface SongCardProps {
+  song: Song;
+  isOwner: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
 export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardProps) {
   const totalBars = song.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
   const isShared = song.sharedWith.length > 0;
   const hasAdvancedMode = song.sections && song.sections.length > 0;
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit();
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete();
+  };
 
   return (
     <div className="song-card">
@@ -16,10 +36,10 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
         </div>
         {isOwner && (
           <div className="song-card-actions">
-            <button onClick={onEdit} className="icon-btn" title="Modifica">
+            <button onClick={handleEdit} className="icon-btn" title="Modifica">
               ✏️
             </button>
-            <button onClick={onDelete} className="icon-btn" title="Elimina">
+            <button onClick={handleDelete} className="icon-btn" title="Elimina">
               🗑️
             </button>
           </div>
@@ -31,14 +51,14 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
         <span className="info-badge">🎵 {song.timeSignature}/4</span>
         {hasAdvancedMode && (
           <span className="info-badge">
-            📝 {song.sections.length} sezioni ({totalBars} batt.)
+            📝 {song.sections!.length} sezioni ({totalBars} batt.)
           </span>
         )}
       </div>
 
       {hasAdvancedMode && (
         <div className="sections-preview">
-          {song.sections.map((section, index) => (
+          {song.sections!.map((section, index) => (
             <span key={index} className="section-tag">
               {section.name || `Sezione ${index + 1}`} ({section.bars} batt.)
             </span>
