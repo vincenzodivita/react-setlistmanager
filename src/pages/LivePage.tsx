@@ -9,7 +9,7 @@ export default function LivePage() {
   const navigate = useNavigate();
   const { songs } = useAppStore();
 
-  // Stato corrente
+  // State from navigation
   const [currentSetlist, setCurrentSetlist] = useState<Setlist | null>(
     location.state?.setlist || null
   );
@@ -28,75 +28,80 @@ export default function LivePage() {
   const intervalRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
-  // Canzone corrente
+  // Get current song
   const currentSong = currentSetlist
     ? songs.find((s) => s.id === currentSetlist.songs[currentSongIndex])
     : null;
 
   const totalBars = currentSong?.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
 
-  // Cleanup su unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
-  // Init audio context
+  // Initialize audio context
   const initAudioContext = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
   };
 
-  // Suono click metronomo
+  // Play click sound
   const playClick = (isAccent: boolean) => {
     if (!audioContextRef.current) return;
 
-    const osc = audioContextRef.current.createOscillator();
-    const gain = audioContextRef.current.createGain();
-    osc.connect(gain);
-    gain.connect(audioContextRef.current.destination);
+    const oscillator = audioContextRef.current.createOscillator();
+    const gainNode = audioContextRef.current.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.value = isAccent ? 1200 : 800;
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContextRef.current.destination);
 
-    gain.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.1);
+    oscillator.frequency.value = isAccent ? 1200 : 800;
+    oscillator.type = 'sine';
 
-    osc.start(audioContextRef.current.currentTime);
-    osc.stop(audioContextRef.current.currentTime + 0.1);
+    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.01,
+      audioContextRef.current.currentTime + 0.1
+    );
+
+    oscillator.start(audioContextRef.current.currentTime);
+    oscillator.stop(audioContextRef.current.currentTime + 0.1);
   };
 
-  // Aggiorna indice sezione
+  // Update section progress
   const updateSectionProgress = (barNumber?: number) => {
     if (!currentSong?.sections) return;
     const bar = barNumber !== undefined ? barNumber : currentBar;
-    let accBars = 0;
+    let accumulatedBars = 0;
 
     for (let i = 0; i < currentSong.sections.length; i++) {
-      if (bar < accBars + currentSong.sections[i].bars) {
+      if (bar < accumulatedBars + currentSong.sections[i].bars) {
         setCurrentSectionIndex(i);
         return;
       }
-      accBars += currentSong.sections[i].bars;
+      accumulatedBars += currentSong.sections[i].bars;
     }
 
-    // Se finito, reset
     if (bar >= totalBars) {
-      setCurrentBar(-1);
+      setCurrentBar(-1); // next tick becomes 0
       setCurrentSectionIndex(0);
     } else {
       setCurrentSectionIndex(currentSong.sections.length - 1);
     }
   };
 
-  // Start metronomo
+  // Start metronome
   const startMetronome = () => {
     if (!currentSong) return;
+
     initAudioContext();
 
     const bpm = currentSong.bpm;
+    const timeSignature = currentSong.timeSignature;
     const interval = (60 / bpm) * 1000;
 
     setIsPlaying(true);
@@ -110,11 +115,11 @@ export default function LivePage() {
       setPrecountBars(0);
     }
 
-    playClick(true); // primo click subito
+    playClick(true);
 
     intervalRef.current = window.setInterval(() => {
       setCurrentBeat((prevBeat) => {
-        const nextBeat = prevBeat >= currentSong.timeSignature ? 1 : prevBeat + 1;
+        const nextBeat = prevBeat >= timeSignature ? 1 : prevBeat + 1;
 
         if (isPrecount) {
           setPrecountBars((prev) => {
@@ -143,40 +148,45 @@ export default function LivePage() {
     }
   };
 
-  const toggleMetronome = () => (isPlaying ? stopMetronome() : startMetronome());
+  const toggleMetronome = () => {
+    if (isPlaying) stopMetronome();
+    else startMetronome();
+  };
 
   const handleStop = () => {
     stopMetronome();
     setCurrentBar(0);
-    setCurrentBeat(1);
     setCurrentSectionIndex(0);
+    setCurrentBeat(1);
     setIsPrecount(false);
     setPrecountBars(0);
   };
 
-  // Navigazione brani
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
-      handleStop();
+      stopMetronome();
       setCurrentSongIndex(currentSongIndex - 1);
+      handleStop();
     }
   };
 
   const handleNextSong = () => {
     if (currentSetlist && currentSongIndex < currentSetlist.songs.length - 1) {
-      handleStop();
+      stopMetronome();
       setCurrentSongIndex(currentSongIndex + 1);
+      handleStop();
     }
   };
 
   const handleSelectSong = (index: number) => {
-    handleStop();
+    if (isPlaying) stopMetronome();
     setCurrentSongIndex(index);
+    handleStop();
   };
 
   const handleJumpToSection = (sectionIndex: number) => {
-    if (!currentSong?.sections) return;
     if (isPlaying) return;
+    if (!currentSong?.sections) return;
 
     let targetBar = 0;
     for (let i = 0; i < sectionIndex; i++) {
@@ -189,44 +199,55 @@ export default function LivePage() {
   };
 
   const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseInt(e.target.value);
+    const completedBars = parseInt(e.target.value);
     if (!currentSong?.sections) return;
 
-    let accumulated = 0;
-    let sectionIndex = 0;
+    let accumulatedBars = 0;
+    let targetSection = 0;
+
     for (let i = 0; i < currentSong.sections.length; i++) {
-      if (val < accumulated + currentSong.sections[i].bars) {
-        sectionIndex = i;
+      if (completedBars < accumulatedBars + currentSong.sections[i].bars) {
+        targetSection = i;
         break;
       }
-      accumulated += currentSong.sections[i].bars;
-      sectionIndex = i;
+      accumulatedBars += currentSong.sections[i].bars;
+      targetSection = i;
     }
 
-    setCurrentBar(val);
-    setCurrentSectionIndex(sectionIndex);
+    setCurrentBar(completedBars);
+    setCurrentSectionIndex(targetSection);
     setCurrentBeat(1);
   };
 
   const getSectionInfo = () => {
-    if (!currentSong?.sections) return null;
-    let acc = 0;
-    for (let i = 0; i < currentSectionIndex && i < currentSong.sections.length; i++) {
-      acc += currentSong.sections[i].bars;
+    if (!currentSong?.sections || currentSong.sections.length === 0) return null;
+
+    const sections = currentSong.sections;
+    let accumulatedBars = 0;
+
+    for (let i = 0; i < currentSectionIndex && i < sections.length; i++) {
+      accumulatedBars += sections[i].bars;
     }
-    const barsInSection = isPrecount ? 0 : currentBar - acc;
-    return { currentBarInSection: barsInSection + 1 };
+
+    const barsIntoSection = isPrecount ? 0 : currentBar - accumulatedBars;
+    const currentBarInSection = barsIntoSection + 1;
+
+    return { accumulatedBars, barsIntoSection, currentBarInSection };
   };
 
   const sectionInfo = getSectionInfo();
 
-  // Stato vuoto
   if (!currentSetlist) {
     return (
       <div className="page">
-        <h2>Modalità Live</h2>
-        <p>Nessuna setlist caricata</p>
-        <button onClick={() => navigate('/setlists')}>Vai alle setlist</button>
+        <div className="page-header"><h2>Modalità Live</h2></div>
+        <div className="empty-state">
+          <div className="empty-state-icon">🎤</div>
+          <p>Nessuna setlist caricata</p>
+          <button onClick={() => navigate('/setlists')} className="btn btn-primary">
+            Vai alle Setlist
+          </button>
+        </div>
       </div>
     );
   }
@@ -234,94 +255,108 @@ export default function LivePage() {
   if (!currentSong) {
     return (
       <div className="page">
-        <h2>Modalità Live</h2>
-        <p>Brano non trovato</p>
+        <div className="page-header"><h2>Modalità Live</h2></div>
+        <div className="empty-state">
+          <div className="empty-state-icon">❌</div>
+          <p>Brano non trovato</p>
+        </div>
       </div>
     );
   }
 
-  // Render principale
   return (
     <div className="live-page">
-      <div className="live-sidebar">
-        <h3>Setlist</h3>
-        <div>{currentSetlist.name}</div>
-        <div>Brano {currentSongIndex + 1} di {currentSetlist.songs.length}</div>
-        {currentSetlist.songs.map((songId, idx) => {
-          const song = songs.find((s) => s.id === songId);
-          if (!song) return null;
-          return (
-            <div
-              key={songId}
-              className={`track-item ${idx === currentSongIndex ? 'active' : ''}`}
-              onClick={() => handleSelectSong(idx)}
-            >
-              {idx + 1}. {song.name}
+      {/* Aggiunto live-container */}
+      <div className="live-container">
+        {/* Sidebar */}
+        <div className="live-sidebar">
+          <h3>Setlist</h3>
+          <div className="live-setlist-info">
+            <div className="live-setlist-name">{currentSetlist.name}</div>
+            <div className="live-setlist-progress">
+              Brano {currentSongIndex + 1} di {currentSetlist.songs.length}
             </div>
-          );
-        })}
-      </div>
-
-      <div className="live-main">
-        <h2>{currentSong.name}</h2>
-        <div>
-          {currentSong.bpm} BPM • {currentSong.timeSignature}/4
-        </div>
-
-        {/* Metronomo */}
-        <div className="metronome-beats">
-          {Array.from({ length: currentSong.timeSignature }, (_, i) => (
-            <span
-              key={i}
-              className={`beat ${currentBeat === i + 1 ? (isPrecount ? 'precount' : 'accent') : ''}`}
-            >
-              {i + 1}
-            </span>
-          ))}
-        </div>
-
-        {/* Controlli */}
-        <div className="controls">
-          <button onClick={handlePrevSong} disabled={currentSongIndex === 0}>⏮</button>
-          <button onClick={handleStop}>⏹</button>
-          <button onClick={toggleMetronome}>{isPlaying ? '⏸' : '▶'}</button>
-          <button onClick={handleNextSong} disabled={currentSongIndex === currentSetlist.songs.length - 1}>⏭</button>
-        </div>
-
-        {/* Progressione barre */}
-        {currentSong.sections && currentSong.sections.length > 0 && (
-          <div className="progress-container">
-            <span>{isPrecount ? 'PRE' : currentBar + 1} / {totalBars}</span>
-            <input
-              type="range"
-              min={0}
-              max={totalBars}
-              value={isPrecount ? 0 : currentBar}
-              onChange={handleProgressChange}
-              disabled={isPlaying}
-            />
           </div>
-        )}
-
-        {/* Sezioni */}
-        {currentSong.sections && currentSong.sections.length > 0 && (
-          <div className="sections">
-            {currentSong.sections.map((sec, idx) => {
-              const isActive = idx === currentSectionIndex && !isPrecount;
-              const barsCompleted = isActive && sectionInfo ? sectionInfo.currentBarInSection : 0;
+          <div className="live-track-list">
+            {currentSetlist.songs.map((songId, index) => {
+              const song = songs.find((s) => s.id === songId);
+              if (!song) return null;
               return (
                 <div
-                  key={idx}
-                  className={`section ${isActive ? 'active' : ''}`}
-                  onClick={() => handleJumpToSection(idx)}
-                  style={{ pointerEvents: isPlaying ? 'none' : 'auto' }}
+                  key={songId}
+                  className={`live-track-item ${index === currentSongIndex ? 'active' : ''}`}
+                  onClick={() => handleSelectSong(index)}
                 >
-                  {sec.name} ({barsCompleted}/{sec.bars})
+                  <span className="track-number">{index + 1}</span>
+                  <div className="track-info">
+                    <div className="track-name">{song.name}</div>
+                    <div className="track-details">
+                      {song.bpm} BPM • {song.timeSignature}/4
+                    </div>
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
+        </div>
+
+        {/* Main area */}
+        <div className="live-main">
+          <h2>{currentSong.name}</h2>
+          <div>{currentSong.bpm} BPM • {currentSong.timeSignature}/4</div>
+
+          {/* Metronome */}
+          <div className="metronome-beats">
+            {Array.from({ length: currentSong.timeSignature }, (_, i) => (
+              <span
+                key={i}
+                className={`beat ${
+                  currentBeat === i + 1 && isPlaying ? 'active' : ''
+                } ${currentBeat === i + 1 && isPrecount ? 'precount' : ''}`}
+              >
+                {i + 1}
+              </span>
+            ))}
+          </div>
+
+          {/* Controls */}
+          <div className="controls">
+            <button onClick={handlePrevSong} disabled={currentSongIndex === 0}>⏮</button>
+            <button onClick={handleStop}>⏹</button>
+            <button onClick={toggleMetronome}>{isPlaying ? '⏸' : '▶'}</button>
+            <button onClick={handleNextSong} disabled={currentSongIndex === currentSetlist.songs.length - 1}>⏭</button>
+          </div>
+
+          {/* Progress */}
+          <div className="progress-container">
+            <span>{isPrecount ? 'PRE' : `${currentBar + 1}`} / {totalBars}</span>
+            <input type="range" min={0} max={totalBars} value={isPrecount ? 0 : currentBar} onChange={handleProgressChange} />
+          </div>
+
+          {/* Sections */}
+          {currentSong.sections && currentSong.sections.length > 0 && (
+            <div className="sections">
+              {currentSong.sections.map((section, index) => {
+                const isActive = index === currentSectionIndex && !isPrecount;
+                const barsCompleted =
+                  isActive && sectionInfo ? sectionInfo.currentBarInSection : 0;
+                return (
+                  <div
+                    key={index}
+                    className={`section-item ${isActive ? 'active' : ''}`}
+                    onClick={() => handleJumpToSection(index)}
+                  >
+                    <div className="section-name">{section.name}</div>
+                    <div className="section-bars">{section.bars} battute</div>
+                    <div className="section-progress">
+                      {isActive ? `${barsCompleted}/${section.bars}` : `0/${section.bars}`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
