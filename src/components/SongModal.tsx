@@ -1,5 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react';
 import type { Song, CreateSongDto, UpdateSongDto, SongSection } from '@/types';
+import './SongModal.css';
 
 interface SongModalProps {
   song: Song | null;
@@ -9,6 +10,8 @@ interface SongModalProps {
 
 export default function SongModal({ song, onSave, onClose }: SongModalProps) {
   const [name, setName] = useState(song?.name || '');
+  const [artist, setArtist] = useState(song?.artist || '');
+  const [description, setDescription] = useState(song?.description || '');
   const [bpm, setBpm] = useState(song?.bpm || 120);
   const [timeSignature, setTimeSignature] = useState(song?.timeSignature || 4);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -28,6 +31,8 @@ export default function SongModal({ song, onSave, onClose }: SongModalProps) {
     
     const songData: CreateSongDto | UpdateSongDto = {
       name,
+      artist: artist.trim() || undefined,
+      description: description.trim() || undefined,
       bpm,
       timeSignature,
       sections: advancedMode && sections.length > 0 ? sections : undefined,
@@ -87,6 +92,30 @@ export default function SongModal({ song, onSave, onClose }: SongModalProps) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Es: Sweet Child O' Mine"
                 required
+              />
+            </div>
+
+            {/* Artista */}
+            <div className="form-group">
+              <label htmlFor="artist">Artista</label>
+              <input
+                type="text"
+                id="artist"
+                value={artist}
+                onChange={(e) => setArtist(e.target.value)}
+                placeholder="Es: Guns N' Roses"
+              />
+            </div>
+
+            {/* Descrizione */}
+            <div className="form-group">
+              <label htmlFor="description">Descrizione</label>
+              <textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Note sul brano, tonalità, accordatura..."
+                rows={2}
               />
             </div>
 
@@ -195,7 +224,7 @@ export default function SongModal({ song, onSave, onClose }: SongModalProps) {
                         <button
                           key={example}
                           type="button"
-                          onClick={() => addSection()}
+                          onClick={() => setSections([...sections, { name: example, bars: 4 }])}
                           className="badge"
                           style={{ 
                             cursor: 'pointer',
@@ -206,7 +235,7 @@ export default function SongModal({ song, onSave, onClose }: SongModalProps) {
                           onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
                           onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
                         >
-                          {example}
+                          + {example}
                         </button>
                       ))}
                     </div>

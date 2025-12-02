@@ -21,6 +21,8 @@ export interface Song {
   id: string;
   userId: string;
   name: string;
+  artist?: string;
+  description?: string;
   bpm: number;
   timeSignature: number;
   sections?: SongSection[];
@@ -31,6 +33,8 @@ export interface Song {
 
 export interface CreateSongDto {
   name: string;
+  artist?: string;
+  description?: string;
   bpm: number;
   timeSignature: number;
   sections?: SongSection[];
@@ -39,6 +43,8 @@ export interface CreateSongDto {
 
 export interface UpdateSongDto {
   name?: string;
+  artist?: string;
+  description?: string;
   bpm?: number;
   timeSignature?: number;
   sections?: SongSection[];
