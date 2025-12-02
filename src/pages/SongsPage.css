@@ -139,6 +139,10 @@
   justify-content: flex-end;
 }
 
+.filter-item-button button {
+  display: block;
+}
+
 .filter-item label {
   font-size: 0.75rem;
   font-weight: 600;

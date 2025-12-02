@@ -290,13 +290,14 @@ export default function SetlistsPage() {
                 </div>
               </div>
 
-
-              {/* Reset Filtri */}
-              {hasActiveFilters && (
-                <button onClick={clearFilters} className="btn btn-secondary btn-sm">
-                  ✕ Reset filtri
-                </button>
-              )}
+              <div className="filter-item filter-item-button">
+                {/* Reset Filtri */}
+                {hasActiveFilters && (
+                  <button onClick={clearFilters} className="btn btn-secondary btn-sm">
+                    ✕ Reset filtri
+                  </button>
+                )}
+              </div>
             </div>
 
        
