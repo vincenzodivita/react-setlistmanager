@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/appStore';
 import type { Setlist, Song } from '@/types';
@@ -19,16 +19,34 @@ export default function LivePage() {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [precountEnabled, setPrecountEnabled] = useState(true);
   const [isPrecount, setIsPrecount] = useState(false);
-  const [precountBars, setPrecountBars] = useState(0);
+  const [precountBarsRemaining, setPrecountBarsRemaining] = useState(0);
 
   const intervalRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Refs per evitare stale closures
+  const isPrecountRef = useRef(false);
+  const precountBarsRef = useRef(0);
+  const currentBarRef = useRef(0);
 
   const currentSong = currentSetlist
     ? songs.find((s) => s.id === currentSetlist.songs[currentSongIndex])
     : null;
 
   const totalBars = currentSong?.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
+
+  // Sync refs con state
+  useEffect(() => {
+    isPrecountRef.current = isPrecount;
+  }, [isPrecount]);
+
+  useEffect(() => {
+    precountBarsRef.current = precountBarsRemaining;
+  }, [precountBarsRemaining]);
+
+  useEffect(() => {
+    currentBarRef.current = currentBar;
+  }, [currentBar]);
 
   useEffect(() => {
     return () => {
@@ -43,7 +61,7 @@ export default function LivePage() {
     }
   };
 
-  const playClick = (isAccent: boolean) => {
+  const playClick = useCallback((isAccent: boolean, isPrecount: boolean = false) => {
     if (!audioContextRef.current) return;
 
     const oscillator = audioContextRef.current.createOscillator();
@@ -52,7 +70,12 @@ export default function LivePage() {
     oscillator.connect(gainNode);
     gainNode.connect(audioContextRef.current.destination);
 
-    oscillator.frequency.value = isAccent ? 1200 : 800;
+    // Frequenza diversa per precount
+    if (isPrecount) {
+      oscillator.frequency.value = 1000; // Tono medio per precount
+    } else {
+      oscillator.frequency.value = isAccent ? 1200 : 800;
+    }
     oscillator.type = 'sine';
 
     gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
@@ -63,37 +86,36 @@ export default function LivePage() {
 
     oscillator.start(audioContextRef.current.currentTime);
     oscillator.stop(audioContextRef.current.currentTime + 0.1);
-  };
+  }, []);
 
-  const updateSectionProgress = (barNumber?: number) => {
+  const updateSectionFromBar = useCallback((barNumber: number) => {
     if (!currentSong?.sections) return;
-    let bar = barNumber ?? currentBar;
-    let accumulatedBars = 0;
 
+    let accumulatedBars = 0;
     for (let i = 0; i < currentSong.sections.length; i++) {
       const section = currentSong.sections[i];
-      if (bar < accumulatedBars + section.bars) {
+      if (barNumber < accumulatedBars + section.bars) {
         setCurrentSectionIndex(i);
         return;
       }
       accumulatedBars += section.bars;
     }
 
-    // se superata ultima sezione → ferma metronomo
+    // Se abbiamo superato l'ultima sezione, ferma
     stopMetronome();
     setCurrentBar(0);
     setCurrentSectionIndex(0);
-  };
+  }, [currentSong]);
 
-  const stopMetronome = () => {
+  const stopMetronome = useCallback(() => {
     setIsPlaying(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  };
+  }, []);
 
-  const startMetronome = () => {
+  const startMetronome = useCallback(() => {
     if (!currentSong) return;
 
     initAudioContext();
@@ -102,101 +124,137 @@ export default function LivePage() {
     const timeSignature = currentSong.timeSignature;
     const interval = (60 / bpm) * 1000;
 
+    // Inizializza stato
     setIsPlaying(true);
     setCurrentBeat(1);
 
+    // Setup precount
     if (precountEnabled) {
       setIsPrecount(true);
-      setPrecountBars(2);
+      setPrecountBarsRemaining(2);
+      isPrecountRef.current = true;
+      precountBarsRef.current = 2;
     } else {
       setIsPrecount(false);
-      setPrecountBars(0);
+      setPrecountBarsRemaining(0);
+      isPrecountRef.current = false;
+      precountBarsRef.current = 0;
     }
 
-    playClick(true);
+    // Primo click
+    playClick(true, precountEnabled);
+
+    let beatCounter = 1;
 
     intervalRef.current = window.setInterval(() => {
-      setCurrentBeat((prevBeat) => {
-        let nextBeat = prevBeat >= currentSong.timeSignature ? 1 : prevBeat + 1;
+      // Calcola prossimo beat
+      beatCounter = beatCounter >= timeSignature ? 1 : beatCounter + 1;
+      setCurrentBeat(beatCounter);
 
-        if (isPrecount) {
-          // decrement precount a ogni prima battuta della barra
-          if (nextBeat === 1) {
-            setPrecountBars((prev) => {
-              const remaining = prev - 1;
-              if (remaining <= 0) setIsPrecount(false);
-              return remaining;
-            });
-          }
-        } else {
-          // incrementa barra solo se fine battuta
-          if (nextBeat === 1) {
-            setCurrentBar((prevBar) => {
-              const newBar = prevBar + 1;
-              updateSectionProgress(newBar);
-              return newBar;
-            });
+      const isFirstBeatOfBar = beatCounter === 1;
+
+      if (isPrecountRef.current) {
+        // Siamo in precount
+        playClick(isFirstBeatOfBar, true);
+
+        if (isFirstBeatOfBar) {
+          const newPrecountBars = precountBarsRef.current - 1;
+          precountBarsRef.current = newPrecountBars;
+          setPrecountBarsRemaining(newPrecountBars);
+
+          if (newPrecountBars <= 0) {
+            isPrecountRef.current = false;
+            setIsPrecount(false);
           }
         }
+      } else {
+        // Esecuzione normale
+        playClick(isFirstBeatOfBar, false);
 
-        // click
-        playClick(nextBeat === 1 && !isPrecount);
+        if (isFirstBeatOfBar) {
+          const newBar = currentBarRef.current + 1;
+          currentBarRef.current = newBar;
+          setCurrentBar(newBar);
 
-        return nextBeat;
-      });
+          // Aggiorna sezione
+          if (currentSong?.sections) {
+            let accumulatedBars = 0;
+            let found = false;
+            for (let i = 0; i < currentSong.sections.length; i++) {
+              const section = currentSong.sections[i];
+              if (newBar < accumulatedBars + section.bars) {
+                setCurrentSectionIndex(i);
+                found = true;
+                break;
+              }
+              accumulatedBars += section.bars;
+            }
+
+            // Se abbiamo superato tutte le sezioni, ferma
+            if (!found && newBar >= totalBars) {
+              clearInterval(intervalRef.current!);
+              intervalRef.current = null;
+              setIsPlaying(false);
+              setCurrentBar(0);
+              currentBarRef.current = 0;
+              setCurrentSectionIndex(0);
+              setCurrentBeat(1);
+              beatCounter = 1;
+            }
+          }
+        }
+      }
     }, interval);
+  }, [currentSong, precountEnabled, playClick, totalBars]);
 
-
-  const stopMetronome = () => {
-    setIsPlaying(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+  const toggleMetronome = () => {
+    if (isPlaying) {
+      stopMetronome();
+    } else {
+      startMetronome();
     }
   };
 
-  const toggleMetronome = () => {
-    isPlaying ? stopMetronome() : startMetronome();
-  };
-
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     stopMetronome();
     setCurrentBar(0);
+    currentBarRef.current = 0;
     setCurrentSectionIndex(0);
     setCurrentBeat(1);
     setIsPrecount(false);
-    setPrecountBars(0);
-  };
+    isPrecountRef.current = false;
+    setPrecountBarsRemaining(0);
+    precountBarsRef.current = 0;
+  }, [stopMetronome]);
 
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
-      stopMetronome();
-      setCurrentSongIndex(currentSongIndex - 1);
       handleStop();
+      setCurrentSongIndex(currentSongIndex - 1);
     }
   };
 
   const handleNextSong = () => {
     if (currentSetlist && currentSongIndex < currentSetlist.songs.length - 1) {
-      stopMetronome();
-      setCurrentSongIndex(currentSongIndex + 1);
       handleStop();
+      setCurrentSongIndex(currentSongIndex + 1);
     }
   };
 
   const handleSelectSong = (index: number) => {
-    if (isPlaying) stopMetronome();
-    setCurrentSongIndex(index);
     handleStop();
+    setCurrentSongIndex(index);
   };
 
   const handleJumpToSection = (sectionIndex: number) => {
     if (isPlaying || !currentSong?.sections) return;
+
     let targetBar = 0;
     for (let i = 0; i < sectionIndex; i++) {
       targetBar += currentSong.sections[i].bars;
     }
     setCurrentBar(targetBar);
+    currentBarRef.current = targetBar;
     setCurrentSectionIndex(sectionIndex);
     setCurrentBeat(1);
   };
@@ -218,6 +276,7 @@ export default function LivePage() {
     }
 
     setCurrentBar(completedBars);
+    currentBarRef.current = completedBars;
     setCurrentSectionIndex(targetSection);
     setCurrentBeat(1);
   };
@@ -321,6 +380,11 @@ export default function LivePage() {
 
           {/* Metronome */}
           <div className="metronome-display">
+            {isPrecount && (
+              <div className="precount-indicator">
+                PRECOUNT: {precountBarsRemaining} {precountBarsRemaining === 1 ? 'battuta' : 'battute'}
+              </div>
+            )}
             <div className="metronome-beats">
               {Array.from({ length: currentSong.timeSignature }, (_, i) => (
                 <div
@@ -331,7 +395,7 @@ export default function LivePage() {
                     currentBeat === i + 1 && i === 0 && isPlaying && !isPrecount
                       ? 'accent'
                       : ''
-                  } ${currentBeat === i + 1 && isPrecount ? 'precount' : ''}`}
+                  } ${currentBeat === i + 1 && isPrecount && isPlaying ? 'precount' : ''}`}
                 >
                   <span className="beat-number">{i + 1}</span>
                 </div>
@@ -426,7 +490,7 @@ export default function LivePage() {
                       opacity: isPlaying ? 0.9 : 1,
                     }}
                   >
-                    <div className="section-name">{section.name}</div>
+                    <div className="section-name">{section.name || `Sezione ${index + 1}`}</div>
                     <div className="section-bars">{section.bars} battute</div>
                     <div className="section-progress">
                       {isActive ? `${barsCompleted}/${section.bars}` : `0/${section.bars}`}
@@ -440,5 +504,4 @@ export default function LivePage() {
       </div>
     </main>
   );
-}
 }
