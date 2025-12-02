@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { apiClient } from '@/services/api';
 import type { Song, CreateSongDto, UpdateSongDto } from '@/types';
@@ -6,10 +6,90 @@ import SongCard from '@/components/SongCard';
 import SongModal from '@/components/SongModal';
 import './SongsPage.css';
 
+type SortOption = 'name' | 'artist' | 'bpm' | 'recent';
+
 export default function SongsPage() {
   const { songs, setSongs, user } = useAppStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
+
+  // Filtri
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterArtist, setFilterArtist] = useState('');
+  const [filterTimeSignature, setFilterTimeSignature] = useState<number | ''>('');
+  
+  // Ordinamento
+  const [sortBy, setSortBy] = useState<SortOption>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  // Estrai lista artisti unici per il filtro
+  const uniqueArtists = useMemo(() => {
+    const artists = songs
+      .map(song => song.artist)
+      .filter((artist): artist is string => !!artist && artist.trim() !== '');
+    return [...new Set(artists)].sort();
+  }, [songs]);
+
+  // Estrai time signatures uniche
+  const uniqueTimeSignatures = useMemo(() => {
+    const signatures = songs.map(song => song.timeSignature);
+    return [...new Set(signatures)].sort((a, b) => a - b);
+  }, [songs]);
+
+  // Filtra e ordina i brani
+  const filteredAndSortedSongs = useMemo(() => {
+    let result = [...songs];
+
+    // Filtro per ricerca (nome, artista, descrizione)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(song =>
+        song.name.toLowerCase().includes(query) ||
+        (song.artist && song.artist.toLowerCase().includes(query)) ||
+        (song.description && song.description.toLowerCase().includes(query))
+      );
+    }
+
+    // Filtro per artista
+    if (filterArtist) {
+      result = result.filter(song => song.artist === filterArtist);
+    }
+
+    // Filtro per time signature
+    if (filterTimeSignature !== '') {
+      result = result.filter(song => song.timeSignature === filterTimeSignature);
+    }
+
+    // Ordinamento
+    result.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name':
+          comparison = a.name.localeCompare(b.name, 'it');
+          break;
+        case 'artist':
+          const artistA = a.artist || '';
+          const artistB = b.artist || '';
+          comparison = artistA.localeCompare(artistB, 'it');
+          // Se stesso artista, ordina per nome
+          if (comparison === 0) {
+            comparison = a.name.localeCompare(b.name, 'it');
+          }
+          break;
+        case 'bpm':
+          comparison = a.bpm - b.bpm;
+          break;
+        case 'recent':
+          comparison = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [songs, searchQuery, filterArtist, filterTimeSignature, sortBy, sortDirection]);
 
   const handleCreateSong = async (dto: CreateSongDto) => {
     try {
@@ -56,7 +136,21 @@ export default function SongsPage() {
     setEditingSong(null);
   };
 
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterArtist('');
+    setFilterTimeSignature('');
+    setSortBy('name');
+    setSortDirection('asc');
+  };
+
+  const hasActiveFilters = searchQuery || filterArtist || filterTimeSignature !== '';
+
   const isOwner = (song: Song) => song.userId === user?.id;
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+  };
 
   return (
     <div className="page">
@@ -67,14 +161,124 @@ export default function SongsPage() {
         </button>
       </div>
 
+      {/* Filtri e Ordinamento */}
+      {songs.length > 0 && (
+        <div className="filters-container">
+          {/* Ricerca */}
+          <div className="filter-row">
+            <div className="search-box">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Cerca per nome, artista o descrizione..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="clear-search"
+                  title="Cancella ricerca"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filtri e Ordinamento */}
+          <div className="filter-row">
+            <div className="filters-group">
+              {/* Filtro Artista */}
+              <div className="filter-item">
+                <label>Artista</label>
+                <select
+                  value={filterArtist}
+                  onChange={(e) => setFilterArtist(e.target.value)}
+                >
+                  <option value="">Tutti</option>
+                  {uniqueArtists.map(artist => (
+                    <option key={artist} value={artist}>{artist}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro Time Signature */}
+              <div className="filter-item">
+                <label>Tempo</label>
+                <select
+                  value={filterTimeSignature}
+                  onChange={(e) => setFilterTimeSignature(e.target.value ? Number(e.target.value) : '')}
+                >
+                  <option value="">Tutti</option>
+                  {uniqueTimeSignatures.map(ts => (
+                    <option key={ts} value={ts}>{ts}/4</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Ordinamento */}
+              <div className="filter-item">
+                <label>Ordina per</label>
+                <div className="sort-controls">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  >
+                    <option value="name">Nome brano</option>
+                    <option value="artist">Artista</option>
+                    <option value="bpm">BPM</option>
+                    <option value="recent">Più recenti</option>
+                  </select>
+                  <button
+                    onClick={toggleSortDirection}
+                    className="sort-direction-btn"
+                    title={sortDirection === 'asc' ? 'Crescente' : 'Decrescente'}
+                  >
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Reset Filtri */}
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="btn btn-secondary btn-sm">
+                ✕ Reset filtri
+              </button>
+            )}
+          </div>
+
+          {/* Contatore risultati */}
+          <div className="results-count">
+            {filteredAndSortedSongs.length === songs.length ? (
+              <span>{songs.length} {songs.length === 1 ? 'brano' : 'brani'}</span>
+            ) : (
+              <span>
+                {filteredAndSortedSongs.length} di {songs.length} {songs.length === 1 ? 'brano' : 'brani'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {songs.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">🎵</div>
           <p>Nessun brano ancora. Inizia ad aggiungerne uno!</p>
         </div>
+      ) : filteredAndSortedSongs.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🔍</div>
+          <p>Nessun brano trovato con i filtri selezionati</p>
+          <button onClick={clearFilters} className="btn btn-secondary" style={{ marginTop: '1rem' }}>
+            Reset filtri
+          </button>
+        </div>
       ) : (
         <div className="songs-grid">
-          {songs.map((song) => (
+          {filteredAndSortedSongs.map((song) => (
             <SongCard
               key={song.id}
               song={song}

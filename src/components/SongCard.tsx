@@ -58,20 +58,10 @@ export default function SongCard({ song, isOwner, onEdit, onDelete }: SongCardPr
         <span className="info-badge">🎵 {song.timeSignature}/4</span>
         {hasAdvancedMode && (
           <span className="info-badge">
-            📝 {song.sections!.length} sezioni ({totalBars} batt.)
+            📝 {song.sections!.length} sez. ({totalBars} batt.)
           </span>
         )}
       </div>
-
-      {hasAdvancedMode && (
-        <div className="sections-preview">
-          {song.sections!.map((section, index) => (
-            <span key={index} className="section-tag">
-              {section.name || `Sezione ${index + 1}`} ({section.bars} batt.)
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
