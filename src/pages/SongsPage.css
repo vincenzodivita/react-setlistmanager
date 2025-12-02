@@ -135,6 +135,10 @@
   min-width: 140px;
 }
 
+.filter-item button{
+  justify-content: flex-end;
+}
+
 .filter-item label {
   font-size: 0.75rem;
   font-weight: 600;
