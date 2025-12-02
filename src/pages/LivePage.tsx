@@ -18,7 +18,7 @@ export default function LivePage() {
   // Metronome state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(1);
-  const [currentBar, setCurrentBar] = useState(0); // 0-based: 0 = completato 0 battute, IN battuta 1
+  const [currentBar, setCurrentBar] = useState(0);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [precountEnabled, setPrecountEnabled] = useState(true);
   const [isPrecount, setIsPrecount] = useState(false);
@@ -38,9 +38,7 @@ export default function LivePage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 
@@ -74,12 +72,34 @@ export default function LivePage() {
     oscillator.stop(audioContextRef.current.currentTime + 0.1);
   };
 
+  // Update section progress
+  const updateSectionProgress = (barNumber?: number) => {
+    if (!currentSong?.sections) return;
+    const bar = barNumber !== undefined ? barNumber : currentBar;
+    let accumulatedBars = 0;
+
+    for (let i = 0; i < currentSong.sections.length; i++) {
+      if (bar < accumulatedBars + currentSong.sections[i].bars) {
+        setCurrentSectionIndex(i);
+        return;
+      }
+      accumulatedBars += currentSong.sections[i].bars;
+    }
+
+    // Loop back if finished
+    if (bar >= totalBars) {
+      setCurrentBar(-1); // Next tick will become 0
+      setCurrentSectionIndex(0);
+    } else {
+      setCurrentSectionIndex(currentSong.sections.length - 1);
+    }
+  };
+
   // Start metronome
   const startMetronome = () => {
     if (!currentSong) return;
 
     initAudioContext();
-
     const bpm = currentSong.bpm;
     const timeSignature = currentSong.timeSignature;
     const interval = (60 / bpm) * 1000;
@@ -95,7 +115,8 @@ export default function LivePage() {
       setPrecountBars(0);
     }
 
-    playClick(true);
+    // First click
+    playClick(!isPrecount);
 
     intervalRef.current = setInterval(() => {
       setCurrentBeat((prevBeat) => {
@@ -112,12 +133,15 @@ export default function LivePage() {
               return newCount;
             });
           } else {
-            setCurrentBar((prev) => prev + 1);
-            updateSectionProgress();
+            setCurrentBar((prev) => {
+              const newBar = prev + 1;
+              updateSectionProgress(newBar);
+              return newBar;
+            });
           }
         }
 
-        playClick(nextBeat === 1);
+        playClick(!isPrecount && nextBeat === 1);
         return nextBeat;
       });
     }, interval);
@@ -151,31 +175,7 @@ export default function LivePage() {
     setPrecountBars(0);
   };
 
-  // Update section progress
-  const updateSectionProgress = () => {
-    if (!currentSong?.sections || currentSong.sections.length === 0) return;
-
-    const sections = currentSong.sections;
-    let accumulatedBars = 0;
-
-    for (let i = 0; i < sections.length; i++) {
-      if (currentBar + 1 < accumulatedBars + sections[i].bars) {
-        setCurrentSectionIndex(i);
-        return;
-      }
-      accumulatedBars += sections[i].bars;
-    }
-
-    // Loop back if we've completed all sections
-    if (currentBar + 1 >= totalBars) {
-      setCurrentBar(-1); // Will become 0 on next increment
-      setCurrentSectionIndex(0);
-    } else {
-      setCurrentSectionIndex(sections.length - 1);
-    }
-  };
-
-  // Navigate to previous song
+  // Navigate songs
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
       stopMetronome();
@@ -184,7 +184,6 @@ export default function LivePage() {
     }
   };
 
-  // Navigate to next song
   const handleNextSong = () => {
     if (currentSetlist && currentSongIndex < currentSetlist.songs.length - 1) {
       stopMetronome();
@@ -193,17 +192,14 @@ export default function LivePage() {
     }
   };
 
-  // Jump to specific song
   const handleSelectSong = (index: number) => {
     if (isPlaying) stopMetronome();
     setCurrentSongIndex(index);
     handleStop();
   };
 
-  // Jump to section
   const handleJumpToSection = (sectionIndex: number) => {
-    if (isPlaying) return; // Can't jump while playing
-
+    if (isPlaying) return;
     if (!currentSong?.sections) return;
 
     let targetBar = 0;
@@ -216,10 +212,8 @@ export default function LivePage() {
     setCurrentBeat(1);
   };
 
-  // Handle progress slider change
   const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const completedBars = parseInt(e.target.value);
-
     if (!currentSong?.sections) return;
 
     let accumulatedBars = 0;
@@ -239,32 +233,26 @@ export default function LivePage() {
     setCurrentBeat(1);
   };
 
-  // Get section info for display
+  // Section info
   const getSectionInfo = () => {
     if (!currentSong?.sections || currentSong.sections.length === 0) return null;
 
     const sections = currentSong.sections;
     let accumulatedBars = 0;
 
-    for (let i = 0; i <= currentSectionIndex && i < sections.length; i++) {
-      if (i < currentSectionIndex) {
-        accumulatedBars += sections[i].bars;
-      }
+    for (let i = 0; i < currentSectionIndex && i < sections.length; i++) {
+      accumulatedBars += sections[i].bars;
     }
 
-    const barsIntoSection = currentBar - accumulatedBars;
-    const currentBarInSection = barsIntoSection + 1; // 1-indexed for display
+    const barsIntoSection = isPrecount ? 0 : currentBar - accumulatedBars;
+    const currentBarInSection = barsIntoSection + 1;
 
-    return {
-      accumulatedBars,
-      barsIntoSection,
-      currentBarInSection,
-    };
+    return { accumulatedBars, barsIntoSection, currentBarInSection };
   };
 
   const sectionInfo = getSectionInfo();
 
-  // Empty state
+  // Empty states
   if (!currentSetlist) {
     return (
       <div className="page">
