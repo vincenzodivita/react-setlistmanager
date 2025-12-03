@@ -22,6 +22,7 @@ export default function LivePage() {
   const [tempBpm, setTempBpm] = useState<number | null>(null);
   const [precountBarsRemaining, setPrecountBarsRemaining] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   
   // Progress fluido
   const [smoothProgress, setSmoothProgress] = useState(0);
@@ -49,14 +50,20 @@ export default function LivePage() {
 
   const currentBpm = tempBpm !== null ? tempBpm : currentSong?.bpm;
 
+  const prevSongId = currentSetlist?.songs[currentSongIndex - 1];
+  const nextSongId = currentSetlist?.songs[currentSongIndex + 1];
+  
+  const prevSong = prevSongId ? songs.find(s => s.id === prevSongId) : null;
+  const nextSong = nextSongId ? songs.find(s => s.id === nextSongId) : null;
+
   const totalBars = currentSong?.sections?.reduce((sum, s) => sum + s.bars, 0) || 0;
   
   // Calcola la durata totale in millisecondi
   const getTotalDurationMs = useCallback(() => {
-    if (!currentSong) return 0;
+    if (!currentSong || !currentBpm) return 0;
     const beatsPerBar = currentSong.timeSignature;
     const totalBeats = totalBars * beatsPerBar;
-    const msPerBeat = (60 / currentSong.bpm) * 1000;
+    const msPerBeat = (60 / currentBpm) * 1000;
     return totalBeats * msPerBeat;
   }, [currentSong, totalBars, currentBpm]);
 
@@ -86,6 +93,11 @@ export default function LivePage() {
   useEffect(() => {
     currentSectionIndexRef.current = currentSectionIndex;
   }, [currentSectionIndex]);
+
+  useEffect(() => {
+    // Reset BPM temporaneo al cambio di brano
+    setTempBpm(null);
+  }, [currentSongIndex]);
 
   useEffect(() => {
     return () => {
@@ -259,6 +271,7 @@ export default function LivePage() {
 
   const startMetronome = useCallback(() => {
     if (!currentSong || !currentBpm) return;
+
     initAudioContext();
 
     const bpm = currentBpm;
@@ -413,6 +426,11 @@ export default function LivePage() {
             startMetronome();
           }
           break;
+        case 'h':
+        case 'H':
+          e.preventDefault();
+          setIsSidebarVisible(prev => !prev);
+          break;
         case 'p':
         case 'P':
           e.preventDefault();
@@ -449,10 +467,6 @@ export default function LivePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, currentSetlist, toggleFullscreen, togglePrecount, goToPrevSection, goToNextSection, stopMetronome, startMetronome, handleStop]);
 
-  useEffect(() => {
-    setTempBpm(null);
-  }, [currentSongIndex]); 
-
   const handlePrevSong = () => {
     if (currentSongIndex > 0) {
       handleStop();
@@ -470,7 +484,8 @@ export default function LivePage() {
   const handleSelectSong = (index: number) => {
     handleStop();
     setCurrentSongIndex(index);
-    setTempBpm(null);
+    // forse     setTempBpm(null);
+
   };
 
   const handleJumpToSection = (sectionIndex: number) => {
@@ -522,7 +537,6 @@ export default function LivePage() {
     const newBpm = prompt(`Inserisci il nuovo BPM per "${currentSong.name}" (attuale: ${currentBpm}):`);
     
     if (newBpm === null) {
-      // L'utente ha annullato
       return;
     }
     
@@ -606,7 +620,9 @@ export default function LivePage() {
 
       <div className="live-layout">
         {/* Sidebar - nascosta in fullscreen su mobile */}
-        <aside className={`live-sidebar ${isFullscreen ? 'hidden-mobile' : ''}`}>
+        <aside 
+          className={`live-sidebar ${isFullscreen ? 'hidden-mobile' : ''} ${!isSidebarVisible ? 'hidden' : ''}`}
+        >
           <div className="sidebar-header">
             <h3>{currentSetlist.name}</h3>
             <span className="sidebar-progress">
@@ -640,7 +656,24 @@ export default function LivePage() {
         {/* Main Content */}
         <main className="live-main">
            {/* Header compatto */}
-          <div className="live-header">
+          <div className={`live-header ${!isSidebarVisible ? 'sidebar-hidden' : ''}`}>
+            <div className="adjacent-songs">
+              <div 
+                className="adjacent-song prev-song"
+                onClick={handlePrevSong}
+                style={{ visibility: prevSong && !isSidebarVisible ? 'visible' : 'hidden' }}
+              >
+                {prevSong ? `← ${prevSong.name}` : ''}
+              </div>
+              <div 
+                className="adjacent-song next-song"
+                onClick={handleNextSong}
+                style={{ visibility: nextSong && !isSidebarVisible ? 'visible' : 'hidden' }}
+              >
+                {nextSong ? `${nextSong.name} →` : ''}
+              </div>
+            </div>
+            
             <div className="song-title">
               <h2>{currentSong.name}</h2>
               {currentSong.artist && <span className="song-artist">{currentSong.artist}</span>}
@@ -648,12 +681,10 @@ export default function LivePage() {
             <div className="song-meta">
               <span 
                 className="meta-item bpm"
-                // ➡️ Aggiungi onClick e style
                 onClick={handleBpmClick}
                 style={{ cursor: isPlaying ? 'not-allowed' : 'pointer' }}
               >
                 {currentBpm} BPM 
-                {/* ➡️ Indica se è temporaneo */}
                 {tempBpm !== null && ' (temp.)'} 
               </span>
               <span className="meta-item time">{currentSong.timeSignature}/4</span>
@@ -825,6 +856,7 @@ export default function LivePage() {
             <div className="shortcuts-hint">
               <span>Spazio: Play/Pausa</span>
               <span>Enter: Fullscreen</span>
+              <span>H: Sidebar</span>
               <span>P: Precount</span>
               <span>↑↓: Brani</span>
               <span>←→: Sezioni</span>

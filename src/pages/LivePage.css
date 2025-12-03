@@ -87,6 +87,12 @@ body.live-fullscreen-mode .sidebar-nav {
   flex-direction: column;
   flex-shrink: 0;
   overflow: hidden;
+  transition: width 0.3s ease, border-right 0.3s ease;
+}
+
+.live-sidebar.hidden {
+  width: 0;
+  border-right: none;
 }
 
 .sidebar-header {
@@ -191,10 +197,16 @@ body.live-fullscreen-mode .sidebar-nav {
 /* Header */
 .live-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column; /* Cambiato per i brani adiacenti */
   align-items: center;
+  text-align: center;
   flex-shrink: 0;
-  padding-right: 3rem; /* Space for fullscreen button */
+  padding-right: 3rem; 
+  position: relative;
+}
+
+.live-header.sidebar-hidden {
+  padding-top: 1.5rem; /* Aggiunge spazio quando la sidebar è nascosta per i brani adiacenti */
 }
 
 .song-title h2 {
@@ -214,6 +226,7 @@ body.live-fullscreen-mode .sidebar-nav {
 .song-meta {
   display: flex;
   gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 .meta-item {
@@ -223,14 +236,61 @@ body.live-fullscreen-mode .sidebar-nav {
   border-radius: var(--radius-md);
   font-weight: 700;
   font-size: 0.9rem;
+  transition: all 0.2s;
 }
 
 .meta-item.bpm {
   color: var(--accent-primary);
 }
 
+/* Stile per BPM temporaneo attivo */
+.meta-item.bpm[style*="pointer"]:not([style*="not-allowed"]) {
+  border-color: #f59e0b; /* Arancione */
+  background: rgba(245, 158, 11, 0.1);
+}
+
 .meta-item.time {
   color: #a78bfa;
+}
+
+/* Stili per Brani Adiacenti */
+.adjacent-songs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 1rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.live-header.sidebar-hidden .adjacent-songs {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.adjacent-song {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, color 0.2s, transform 0.2s;
+  pointer-events: all;
+}
+
+.adjacent-song:hover {
+  opacity: 1;
+  color: var(--accent-primary);
+  transform: translateY(-2px);
+  background: var(--bg-tertiary);
 }
 
 /* Metronome Section */
@@ -724,10 +784,14 @@ body.live-fullscreen-mode .sidebar-nav {
   }
 
   .live-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 0.5rem;
     padding-right: 3rem;
+  }
+
+  .live-header.sidebar-hidden {
+    padding-top: 0;
   }
 
   .song-title h2 {
@@ -831,6 +895,10 @@ body.live-fullscreen-mode .sidebar-nav {
     right: 0.5rem;
     width: 40px;
     height: 40px;
+  }
+
+  .adjacent-songs {
+    display: none;
   }
 }
 
