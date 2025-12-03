@@ -99,6 +99,26 @@ export default function LivePage() {
     setTempBpm(null);
   }, [currentSongIndex]);
 
+  // Sincronizza lo stato isFullscreen con l'API Fullscreen nativa
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      // Aggiorna lo stato in base a document.fullscreenElement
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -156,9 +176,23 @@ export default function LivePage() {
     }
   }, [currentSongIndex]);
 
-  // Gestione fullscreen
+  // Gestione fullscreen con API nativa
   const toggleFullscreen = useCallback(() => {
-    setIsFullscreen(prev => !prev);
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch(err => {
+        console.error(`Errore nell'attivazione del fullscreen: ${err.message}`);
+        setIsFullscreen(prev => !prev);
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      }).catch(err => {
+        console.error(`Errore nella disattivazione del fullscreen: ${err.message}`);
+        setIsFullscreen(prev => !prev);
+      });
+    }
   }, []);
 
   // Toggle precount
@@ -411,10 +445,13 @@ export default function LivePage() {
       switch (e.key) {
         case 'Escape':
           if (isFullscreen) {
+            // Esc gestisce l'uscita da fullscreen nativo o custom
+            document.exitFullscreen();
             setIsFullscreen(false);
           }
           break;
-        case 'Enter':
+        case 'f':
+        case 'F':
           e.preventDefault();
           toggleFullscreen();
           break;
@@ -484,8 +521,6 @@ export default function LivePage() {
   const handleSelectSong = (index: number) => {
     handleStop();
     setCurrentSongIndex(index);
-    // forse     setTempBpm(null);
-
   };
 
   const handleJumpToSection = (sectionIndex: number) => {
@@ -532,7 +567,7 @@ export default function LivePage() {
   };
 
   const handleBpmClick = () => {
-    if (isPlaying) return;
+    if (isPlaying || !currentSong) return;
 
     const newBpm = prompt(`Inserisci il nuovo BPM per "${currentSong.name}" (attuale: ${currentBpm}):`);
     
@@ -613,7 +648,7 @@ export default function LivePage() {
       <button 
         className="fullscreen-toggle"
         onClick={toggleFullscreen}
-        title={isFullscreen ? 'Esci da fullscreen (ESC)' : 'Attiva fullscreen'}
+        title={isFullscreen ? 'Esci da fullscreen (ESC)' : 'Attiva fullscreen (F)'}
       >
         {isFullscreen ? '✕' : '⛶'}
       </button>
@@ -675,6 +710,13 @@ export default function LivePage() {
             </div>
             
             <div className="song-title">
+              {/* Nome Setlist quando sidebar è nascosta */}
+              {!isSidebarVisible && (
+                <span className="setlist-name-hidden">
+                  {currentSetlist.name} ({currentSongIndex + 1}/{currentSetlist.songs.length})
+                </span>
+              )}
+
               <h2>{currentSong.name}</h2>
               {currentSong.artist && <span className="song-artist">{currentSong.artist}</span>}
             </div>
@@ -855,7 +897,7 @@ export default function LivePage() {
             {/* Keyboard shortcuts hint */}
             <div className="shortcuts-hint">
               <span>Spazio: Play/Pausa</span>
-              <span>Enter: Fullscreen</span>
+              <span>F: Fullscreen</span>
               <span>H: Sidebar</span>
               <span>P: Precount</span>
               <span>↑↓: Brani</span>
