@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  isEmailVerified: boolean;
   createdAt: string;
 }
 
@@ -130,4 +131,12 @@ export interface LiveState {
   currentBar: number;
   currentSectionIndex: number;
   precountEnabled: boolean;
+}
+
+// Notification types
+export interface NotificationPayload {
+  title: string;
+  body: string;
+  icon?: string;
+  data?: Record<string, string>;
 }

@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '@/services/api';
 import { useAppStore } from '@/store/appStore';
 import './LoginPage.css';
@@ -13,11 +13,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [emailExists, setEmailExists] = useState<boolean | null>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+
+  // Verifica se l'email esiste (per la registrazione)
+  const checkEmail = async (emailToCheck: string) => {
+    if (!emailToCheck || isLogin) return;
+    
+    setCheckingEmail(true);
+    try {
+      const result = await apiClient.checkEmailExists(emailToCheck);
+      setEmailExists(result.exists);
+      if (result.exists) {
+        setError('Questa email è già registrata. Prova ad accedere.');
+      } else {
+        setError('');
+      }
+    } catch (err) {
+      // Ignora errori di rete durante il check
+    } finally {
+      setCheckingEmail(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setIsLoading(true);
 
     try {
@@ -31,6 +55,11 @@ export default function LoginPage() {
           return;
         }
         response = await apiClient.register(email, password, name);
+        
+        // Mostra messaggio per verificare l'email
+        if (!response.user.isEmailVerified) {
+          setSuccess('Registrazione completata! Controlla la tua email per verificare l\'account.');
+        }
       }
 
       setUser(response.user);
@@ -53,13 +82,22 @@ export default function LoginPage() {
         
         <div className="login-tabs">
           <button
-            onClick={() => setIsLogin(true)}
+            onClick={() => {
+              setIsLogin(true);
+              setError('');
+              setSuccess('');
+              setEmailExists(null);
+            }}
             className={`tab-btn ${isLogin ? 'active' : ''}`}
           >
             Login
           </button>
           <button
-            onClick={() => setIsLogin(false)}
+            onClick={() => {
+              setIsLogin(false);
+              setError('');
+              setSuccess('');
+            }}
             className={`tab-btn ${!isLogin ? 'active' : ''}`}
           >
             Registrati
@@ -83,14 +121,28 @@ export default function LoginPage() {
 
           <div className="form-group">
             <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="email@example.com"
-              required
-            />
+            <div className="input-with-status">
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailExists(null);
+                }}
+                onBlur={() => checkEmail(email)}
+                placeholder="email@example.com"
+                required
+                className={emailExists === true ? 'input-error' : emailExists === false ? 'input-success' : ''}
+              />
+              {checkingEmail && <span className="input-status checking">⏳</span>}
+              {!checkingEmail && emailExists === false && !isLogin && (
+                <span className="input-status success">✓</span>
+              )}
+              {!checkingEmail && emailExists === true && !isLogin && (
+                <span className="input-status error">✗</span>
+              )}
+            </div>
           </div>
 
           <div className="form-group">
@@ -107,14 +159,21 @@ export default function LoginPage() {
           </div>
 
           {error && <div className="error-message">{error}</div>}
+          {success && <div className="success-message">{success}</div>}
 
           <button
             type="submit"
             className="btn btn-primary btn-block"
-            disabled={isLoading}
+            disabled={isLoading || (!isLogin && emailExists === true)}
           >
             {isLoading ? 'Caricamento...' : isLogin ? 'Accedi' : 'Registrati'}
           </button>
+
+          {isLogin && (
+            <Link to="/forgot-password" className="forgot-password-link">
+              Password dimenticata?
+            </Link>
+          )}
         </form>
 
         <p className="login-footer">
@@ -123,6 +182,8 @@ export default function LoginPage() {
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
+              setSuccess('');
+              setEmailExists(null);
             }}
             className="link-btn"
           >
