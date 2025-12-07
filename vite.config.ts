@@ -4,11 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 
 export default defineConfig({
+  // ✅ QUESTA È LA CHIAVE DI TUTTO
+  base: '/andante-studio/',
+
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
+
+      // ✅ FONDAMENTALE PER PWA SOTTO SOTTOPERCORSO
       manifest: {
         name: 'Setlist Manager',
         short_name: 'Setlist',
@@ -16,6 +21,10 @@ export default defineConfig({
         theme_color: '#1a1a2e',
         background_color: '#1a1a2e',
         display: 'standalone',
+
+        start_url: '/andante-studio/',
+        scope: '/andante-studio/',
+
         icons: [
           {
             src: 'icon-192.png',
@@ -29,6 +38,7 @@ export default defineConfig({
           }
         ]
       },
+
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
@@ -39,7 +49,7 @@ export default defineConfig({
               cacheName: 'api-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
+                maxAgeSeconds: 60 * 60
               },
               cacheableResponse: {
                 statuses: [0, 200]
@@ -50,6 +60,7 @@ export default defineConfig({
       }
     })
   ],
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -62,10 +73,12 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils')
     }
   },
+
   server: {
     port: 3000,
     open: true
   },
+
   build: {
     outDir: 'dist',
     sourcemap: true,

@@ -28,7 +28,6 @@ function App() {
     }
   }, [isAuthenticated, loadUserData]);
 
-  // Inizializza le push notifications quando l'utente è autenticato
   useEffect(() => {
     if (isAuthenticated && user) {
       initPushNotifications();
@@ -39,13 +38,10 @@ function App() {
     try {
       const initialized = await pushNotifications.init();
       if (initialized) {
-        // Richiedi permesso e registra il token
         await pushNotifications.getAndRegisterToken();
 
-        // Ascolta i messaggi in foreground
         pushNotifications.onForegroundMessage((payload) => {
           console.log('Notification received:', payload);
-          // Il servizio mostra già la notifica browser
         });
       }
     } catch (error) {
@@ -54,8 +50,9 @@ function App() {
   };
 
   return (
-    <BrowserRouter>
-      {/* Banner per richiedere permesso notifiche */}
+    // ✅ QUESTA RIGA SISTEMA DEFINITIVAMENTE TUTTO
+    <BrowserRouter basename="/andante-studio">
+
       {isAuthenticated && <NotificationBanner />}
 
       <Routes>
