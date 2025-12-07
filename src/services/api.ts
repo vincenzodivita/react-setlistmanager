@@ -80,7 +80,10 @@ class ApiClient {
       password,
       name,
     });
-    this.setToken(data.access_token);
+    // NON salvare il token se è null (utente deve verificare email)
+    if (data.access_token) {
+      this.setToken(data.access_token);
+    }
     return data;
   }
 
@@ -89,7 +92,9 @@ class ApiClient {
       email,
       password,
     });
-    this.setToken(data.access_token);
+    if (data.access_token) {
+      this.setToken(data.access_token);
+    }
     return data;
   }
 
@@ -100,6 +105,54 @@ class ApiClient {
 
   logout(): void {
     this.removeToken();
+  }
+
+  // Email verification
+  async verifyEmail(token: string): Promise<{ message: string; user: User; access_token: string }> {
+    const { data } = await this.client.post('/auth/verify-email', { token });
+    // Salva il token dopo verifica email riuscita
+    if (data.access_token) {
+      this.setToken(data.access_token);
+    }
+    return data;
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const { data } = await this.client.post('/auth/resend-verification', { email });
+    return data;
+  }
+
+  // Password reset
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const { data } = await this.client.post('/auth/forgot-password', { email });
+    return data;
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const { data } = await this.client.post('/auth/reset-password', { token, newPassword });
+    return data;
+  }
+
+  // Check email exists
+  async checkEmailExists(email: string): Promise<{ exists: boolean }> {
+    const { data } = await this.client.get('/auth/check-email', { params: { email } });
+    return data;
+  }
+
+  // Device registration for push notifications
+  async registerDevice(fcmToken: string, deviceInfo?: string, platform?: string): Promise<any> {
+    const { data } = await this.client.post('/notifications/register-device', {
+      fcmToken,
+      deviceInfo,
+      platform,
+    });
+    return data;
+  }
+
+  async unregisterDevice(fcmToken: string): Promise<void> {
+    await this.client.delete('/notifications/unregister-device', {
+      data: { fcmToken },
+    });
   }
 
   // Songs endpoints

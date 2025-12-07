@@ -6,11 +6,12 @@ export interface User {
   isEmailVerified: boolean;
   createdAt: string;
 }
-
 export interface AuthResponse {
   user: User;
-  access_token: string;
+  access_token: string | null;  // Può essere null se email non verificata
+  message?: string;             // Messaggio dal backend
 }
+
 
 // Song types
 export interface SongSection {

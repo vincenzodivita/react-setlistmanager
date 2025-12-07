@@ -7,7 +7,7 @@ import './AuthPages.css';
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { setUser, isAuthenticated } = useAppStore();
+  const { setUser, setIsAuthenticated } = useAppStore();
   const token = searchParams.get('token');
 
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
@@ -26,12 +26,20 @@ export default function VerifyEmailPage() {
   const verifyEmail = async () => {
     try {
       const result = await apiClient.verifyEmail(token!);
+      
+      // Imposta l'utente e autenticalo automaticamente
       setUser(result.user);
+      setIsAuthenticated(true);
+      
       setStatus('success');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore nella verifica dell\'email');
       setStatus('error');
     }
+  };
+
+  const handleGoToApp = () => {
+    navigate('/songs');
   };
 
   if (status === 'verifying') {
@@ -61,10 +69,10 @@ export default function VerifyEmailPage() {
             Ora puoi utilizzare tutte le funzionalità dell'app.
           </p>
           <button
-            onClick={() => navigate(isAuthenticated ? '/songs' : '/login')}
+            onClick={handleGoToApp}
             className="btn btn-primary btn-block"
           >
-            {isAuthenticated ? 'Vai all\'App' : 'Vai al Login'}
+            Inizia ad usare l'app →
           </button>
         </div>
       </div>
